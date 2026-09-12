@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   FolderOpen,
   GitBranch,
@@ -33,25 +34,27 @@ import { SettingsPage } from './SettingsPage'
 
 const NAV: {
   id: WorkspacePage
-  label: string
+  labelKey: string
   icon: React.ComponentType<{ className?: string }>
 }[] = [
-  { id: 'context', label: 'Context Builder', icon: ListTree },
-  { id: 'exchange', label: 'AI Exchange', icon: ArrowLeftRight },
-  { id: 'review', label: 'Change Review', icon: FileDiff },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'context', labelKey: 'workspace.nav.context', icon: ListTree },
+  { id: 'exchange', labelKey: 'workspace.nav.exchange', icon: ArrowLeftRight },
+  { id: 'review', labelKey: 'workspace.nav.review', icon: FileDiff },
+  { id: 'settings', labelKey: 'workspace.nav.settings', icon: Settings },
 ]
 
-const PAGE_TITLE: Record<WorkspacePage, string> = {
-  context: 'Context Builder',
-  exchange: 'AI Exchange',
-  review: 'Change Review',
-  settings: 'Settings',
+const PAGE_TITLE_KEY: Record<WorkspacePage, string> = {
+  context: 'workspace.nav.context',
+  exchange: 'workspace.nav.exchange',
+  review: 'workspace.nav.review',
+  settings: 'workspace.nav.settings',
 }
 
 export function WorkspaceShell() {
+  const { t } = useTranslation()
   const activePage = useUIStore(s => s.activePage)
   const setActivePage = useUIStore(s => s.setActivePage)
+  const leftSidebarVisible = useUIStore(s => s.leftSidebarVisible)
   const project = useProjectStore(s => s.project)
   const changes = useChangesStore(s => s.changes)
   const selectedCount = useContextStore(
@@ -59,29 +62,31 @@ export function WorkspaceShell() {
   )
   const pending = pendingCount(changes)
   const isNarrow = useIsNarrow()
+  // Icon-only when user collapsed via titlebar, or window is narrow
+  const navCollapsed = !leftSidebarVisible || isNarrow
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden">
       <aside
         className={cn(
           'flex shrink-0 flex-col border-r bg-muted/20 px-2 py-3.5 transition-[width] duration-200',
-          isNarrow ? 'w-[64px] px-1.5' : 'w-[180px] xl:w-[212px] px-2.5'
+          navCollapsed ? 'w-[64px] px-1.5' : 'w-[180px] xl:w-[212px] px-2.5'
         )}
       >
         <div
           className={cn(
             'flex items-center gap-2.5 px-1.5 pt-1 pb-[14px]',
-            isNarrow && 'justify-center px-0'
+            navCollapsed && 'justify-center px-0'
           )}
         >
           <div className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px] bg-gradient-to-br from-indigo-500 to-purple-500 text-[13px] font-bold text-white shadow-[0_3px_12px_rgba(99,102,241,.4)]">
             AC
           </div>
-          <span className="sr-only">AI Context Tool</span>
-          {!isNarrow && (
+          <span className="sr-only">{t('workspace.brand')}</span>
+          {!navCollapsed && (
             <div className="min-w-0">
               <div className="truncate text-[13px] leading-tight font-semibold tracking-[.2px]">
-                AI Context Tool
+                AIContextTool
               </div>
               <div className="mt-px text-[10px] leading-tight text-muted-foreground">
                 v1.0 · MVP
@@ -91,7 +96,7 @@ export function WorkspaceShell() {
         </div>
 
         <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
-          {!isNarrow && (
+          {!navCollapsed && (
             <div className="px-2.5 pt-2 pb-[5px] text-[10px] font-semibold tracking-[.8px] text-muted-foreground uppercase">
               Workspace
             </div>
@@ -102,11 +107,11 @@ export function WorkspaceShell() {
               item={item}
               active={activePage === item.id}
               badge={item.id === 'review' ? pending : undefined}
-              collapsed={isNarrow}
+              collapsed={navCollapsed}
               onClick={() => setActivePage(item.id)}
             />
           ))}
-          {!isNarrow && (
+          {!navCollapsed && (
             <div className="px-2.5 pt-3 pb-[5px] text-[10px] font-semibold tracking-[.8px] text-muted-foreground uppercase">
               System
             </div>
@@ -115,7 +120,7 @@ export function WorkspaceShell() {
             <NavItem
               item={NAV[3]}
               active={activePage === 'settings'}
-              collapsed={isNarrow}
+              collapsed={navCollapsed}
               onClick={() => setActivePage('settings')}
             />
           ) : null}
@@ -124,33 +129,33 @@ export function WorkspaceShell() {
         <div
           className={cn(
             'mt-auto shrink-0 border-t pt-2.5',
-            isNarrow ? 'px-0' : 'px-2'
+            navCollapsed ? 'px-0' : 'px-2'
           )}
         >
           <div
             className={cn(
               'text-[10.5px] leading-[1.7] text-muted-foreground',
-              isNarrow && 'flex justify-center'
+              navCollapsed && 'flex justify-center'
             )}
             title={project ? `${project.name}\n${project.rootPath}` : undefined}
           >
             <span
               className={cn(
                 'inline-block h-1.5 w-1.5 rounded-full',
-                isNarrow ? '' : 'mr-1.5',
+                navCollapsed ? '' : 'mr-1.5',
                 project ? 'bg-emerald-500' : 'bg-muted-foreground/40'
               )}
             />
-            {!isNarrow && (
+            {!navCollapsed && (
               <>
                 <span className="truncate">
-                  {project?.name ?? '未连接项目'}
+                  {project?.name ?? t('workspace.project.none')}
                 </span>
-                {project ? ' · 已连接' : ''}
+                {project ? t('workspace.project.connected') : ''}
               </>
             )}
           </div>
-          {!isNarrow && (
+          {!navCollapsed && (
             <div className="truncate pl-[11px] text-[10.5px] leading-[1.7] text-muted-foreground">
               {project?.rootPath ?? '—'}
             </div>
@@ -160,9 +165,9 @@ export function WorkspaceShell() {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <WorkspaceTopbar
-          title={PAGE_TITLE[activePage]}
+          title={t(PAGE_TITLE_KEY[activePage])}
           selectedCount={selectedCount}
-          compact={isNarrow}
+          compact={navCollapsed}
         />
         <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           {activePage === 'context' && <ContextBuilderPage />}
@@ -184,7 +189,7 @@ function NavItem({
 }: {
   item: {
     id: WorkspacePage
-    label: string
+    labelKey: string
     icon: React.ComponentType<{ className?: string }>
   }
   active: boolean
@@ -192,12 +197,13 @@ function NavItem({
   collapsed?: boolean
   onClick: () => void
 }) {
+  const { t } = useTranslation()
   const Icon = item.icon
   return (
     <button
       type="button"
       onClick={onClick}
-      title={collapsed ? item.label : undefined}
+      title={collapsed ? t(item.labelKey) : undefined}
       className={cn(
         'flex items-center gap-2.5 rounded-[7px] py-2 text-[12.5px] transition-colors select-none',
         collapsed ? 'justify-center px-0' : 'px-2.5',
@@ -208,7 +214,7 @@ function NavItem({
     >
       <Icon className="h-[15px] w-[15px] shrink-0" />
       <span className={cn(collapsed ? 'sr-only' : 'truncate')}>
-        {item.label}
+        {t(item.labelKey)}
       </span>
       {badge != null && badge > 0 ? (
         <span
@@ -233,6 +239,7 @@ function WorkspaceTopbar({
   selectedCount: number
   compact?: boolean
 }) {
+  const { t } = useTranslation()
   const project = useProjectStore(s => s.project)
   const recent = useProjectStore(s => s.recent)
   const loadRecent = useProjectStore(s => s.loadRecent)
@@ -266,11 +273,11 @@ function WorkspaceTopbar({
 
   const handleOpenFolder = async () => {
     setMenuOpen(false)
-    const path = await open({ directory: true, title: '打开项目目录' })
+    const path = await open({ directory: true, title: t('workspace.project.openFolderTitle') })
     if (!path || Array.isArray(path)) return
     try {
       await openProject(path)
-      toast.success('项目已打开')
+      toast.success(t('workspace.project.opened'))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
     }
@@ -299,7 +306,7 @@ function WorkspaceTopbar({
           >
             {project ? projectAbbr(project.name) : '··'}
           </span>
-          <span className="truncate">{project?.name ?? '打开项目'}</span>
+          <span className="truncate">{project?.name ?? t('workspace.project.open')}</span>
           <svg
             className={cn(
               'h-3 w-3 shrink-0 text-muted-foreground transition-transform',
@@ -322,7 +329,7 @@ function WorkspaceTopbar({
                 autoFocus
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="搜索项目…"
+                placeholder={t('workspace.project.search')}
                 className="h-8 pl-[30px] text-[12px]"
               />
             </div>
@@ -339,7 +346,7 @@ function WorkspaceTopbar({
                 type="button"
                 onClick={() => {
                   setMenuOpen(false)
-                  toast('克隆 Git 仓库（MVP 未实现）')
+                  toast(t('workspace.project.cloneGitTodo'))
                 }}
                 className="flex w-full items-center gap-2.5 rounded-[7px] px-2.5 py-[7px] text-left text-[12.5px] text-muted-foreground transition-colors select-none hover:bg-muted hover:text-foreground"
               >
@@ -366,7 +373,7 @@ function WorkspaceTopbar({
                         setMenuOpen(false)
                         try {
                           await openProject(p.path)
-                          toast.success(`已切换到 ${p.name}`)
+                          toast.success(t('workspace.project.switchTo', { name: p.name }))
                         } catch (e) {
                           toast.error(
                             e instanceof Error ? e.message : String(e)
@@ -416,11 +423,11 @@ function WorkspaceTopbar({
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <span className="hidden rounded-full bg-muted px-2 py-px text-[10.5px] font-medium text-muted-foreground md:inline-block">
-          {selectedCount} files selected
+          {t('workspace.selectedCount', { count: selectedCount })}
         </span>
         {!compact && (
           <span className="rounded-full bg-muted px-2 py-px text-[10.5px] font-medium text-muted-foreground md:hidden">
-            {selectedCount} sel
+            {t('workspace.selectedCountShort', { count: selectedCount })}
           </span>
         )}
         <Button
@@ -429,7 +436,7 @@ function WorkspaceTopbar({
           className="h-7 px-2.5 text-[11.5px]"
           onClick={() => {
             void rescan()
-            toast.success('项目已重新扫描')
+            toast.success(t('workspace.project.rescanned'))
           }}
         >
           Rescan

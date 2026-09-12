@@ -1,77 +1,89 @@
+import { useTranslation } from 'react-i18next'
 import { Switch } from '@/components/ui/switch'
 
 const IGNORED = [
-  { label: '.git/', locked: true },
-  { label: 'node_modules/', locked: true },
-  { label: 'dist/ · build/ · coverage/', locked: true },
-  { label: '.env · .env.* · *.key · *.pem', locked: true },
-  { label: 'credentials.* · secrets.*', locked: true },
+  '.git/',
+  'node_modules/',
+  'dist/ · build/ · coverage/',
+  '.env · .env.* · *.key · *.pem',
+  'credentials.* · secrets.*',
 ]
 
 export function SettingsPage() {
+  const { t } = useTranslation()
+
   return (
     <div className="h-full overflow-y-auto px-4 pt-5 pb-10 sm:px-[30px] sm:pt-[26px]">
       <div className="mx-auto flex w-full max-w-[780px] flex-col gap-3.5">
         <Card
-          title="Ignore Rules"
-          desc="被忽略的文件不会进入 Context，也不允许 AI 修改"
+          title={t('settings.ignore.title')}
+          desc={t('settings.ignore.desc')}
         >
           <div className="flex flex-col gap-1.5">
-            {IGNORED.map(item => (
+            {IGNORED.map(label => (
               <div
-                key={item.label}
+                key={label}
                 className="flex items-center gap-2.5 rounded-[7px] border bg-background px-3 py-2 font-mono text-[11.5px] text-muted-foreground"
               >
                 <span className="text-amber-500">🔒</span>
-                {item.label}
+                {label}
               </div>
             ))}
           </div>
           <div className="mt-3 text-[11.5px] text-muted-foreground">
-            项目根目录 <code className="font-mono text-primary">.aiignore</code>{' '}
-            中的规则会追加到此列表
+            {t('settings.ignore.aiignore')}
           </div>
         </Card>
 
-        <Card title="AI Response Format" desc="软件据此解析 AI 返回的修改结果">
+        <Card
+          title={t('settings.format.title')}
+          desc={t('settings.format.desc')}
+        >
           <SettingRow
-            title="启用严格格式校验"
-            desc="格式不符时拒绝应用，避免误改本地文件"
+            title={t('settings.format.strict')}
+            desc={t('settings.format.strictDesc')}
             defaultOn
           />
           <SettingRow
-            title="Apply 前强制 Diff"
-            desc="AI 返回内容不能直接覆盖本地文件"
+            title={t('settings.format.diff')}
+            desc={t('settings.format.diffDesc')}
             defaultOn
           />
           <SettingRow
-            title="检测外部文件修改"
-            desc="Context 创建后本地文件被改动时提示冲突"
+            title={t('settings.format.external')}
+            desc={t('settings.format.externalDesc')}
             defaultOn
           />
         </Card>
 
         <Card
-          title="Token Estimation"
-          desc="估算值仅用于参考，标记为 Estimated"
+          title={t('settings.token.title')}
+          desc={t('settings.token.desc')}
         >
           <SettingRow
-            title="显示项目总量与 Reduction"
-            desc="对比整个项目规模，显示节省比例"
+            title={t('settings.token.reduction')}
+            desc={t('settings.token.reductionDesc')}
             defaultOn
           />
           <SettingRow
-            title="按 4 字符 ≈ 1 token 估算"
-            desc="适用于英文与代码，中文会略有偏差"
+            title={t('settings.token.chars4')}
+            desc={t('settings.token.chars4Desc')}
             defaultOn
           />
         </Card>
 
-        <Card title="General" desc="界面与行为">
-          <SettingRow title="深色主题" desc="跟随系统偏好设置" defaultOn />
+        <Card
+          title={t('settings.general.title')}
+          desc={t('settings.general.desc')}
+        >
           <SettingRow
-            title="Apply 后自动创建 Undo 快照"
-            desc="支持撤销最近一次 Change Set"
+            title={t('settings.general.dark')}
+            desc={t('settings.general.darkDesc')}
+            defaultOn
+          />
+          <SettingRow
+            title={t('settings.general.undo')}
+            desc={t('settings.general.undoDesc')}
             defaultOn
           />
         </Card>

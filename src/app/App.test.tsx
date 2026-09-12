@@ -5,16 +5,20 @@ import App from './App'
 // Tauri bindings are mocked globally in src/test/setup.ts
 
 describe('App', () => {
-  it('renders AI Context Tool workspace shell', () => {
+  it('renders AIContextTool workspace shell', () => {
     render(<App />)
-    expect(screen.getByText(/AI Context Tool/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/AIContextTool/i).length).toBeGreaterThan(0)
   })
 
   it('renders workspace navigation', () => {
     render(<App />)
-    expect(screen.getAllByText(/Context Builder/i).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/AI Exchange/i).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/Change Review/i).length).toBeGreaterThan(0)
+    expect(
+      screen.getAllByText(/上下文构建|Context Builder/i).length
+    ).toBeGreaterThan(0)
+    expect(screen.getAllByText(/AI 交换|AI Exchange/i).length).toBeGreaterThan(0)
+    expect(
+      screen.getAllByText(/变更评审|Change Review/i).length
+    ).toBeGreaterThan(0)
   })
 
   it('renders title bar with window control buttons', () => {

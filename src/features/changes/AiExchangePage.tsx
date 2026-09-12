@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Copy, Check, Download, ClipboardPaste } from 'lucide-react'
 import { toast } from 'sonner'
 import { readText } from '@tauri-apps/plugin-clipboard-manager'
@@ -11,6 +12,7 @@ import { contextCopyText } from '@/services/project'
 import { useUIStore } from '@/store/ui-store'
 
 export function AiExchangePage() {
+  const { t } = useTranslation()
   const project = useProjectStore(s => s.project)
   const fileHashes = useContextStore(s => s.fileHashes)
   const refreshPreview = useContextStore(s => s.refreshPreview)
@@ -26,9 +28,9 @@ export function AiExchangePage() {
     try {
       await refreshPreview(project.rootPath)
       const ctx = useContextStore.getState().protocolContext
-      if (!ctx) throw new Error('Context not ready')
+      if (!ctx) throw new Error(t('exchange.contextNotReady'))
       await navigator.clipboard.writeText(contextCopyText(ctx))
-      toast.success('已复制 AI Instruction + Project Context JSON')
+      toast.success(t('exchange.copyContextOk'))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
     }
@@ -36,19 +38,19 @@ export function AiExchangePage() {
 
   const copyPrompt = async () => {
     await navigator.clipboard.writeText(AI_INSTRUCTION)
-    toast.success('已复制 AI Instruction')
+    toast.success(t('exchange.copyPromptOk'))
   }
 
   const handleParse = async () => {
     if (!project) {
-      toast.error('请先打开项目')
+      toast.error(t('exchange.needProject'))
       return
     }
     // Baselines come from live project files (not just Context selection).
     await parseFromProject(project.rootPath, fileHashes)
     const st = useChangesStore.getState()
     if (st.changes.length > 0) {
-      toast.success(`Schema 校验通过 · 识别到 ${st.changes.length} 个变更`)
+      toast.success(t('exchange.parseOk', { count: st.changes.length }))
       setTimeout(() => setActivePage('review'), 200)
     }
   }
@@ -62,8 +64,8 @@ export function AiExchangePage() {
       <div className="mx-auto flex w-full max-w-[900px] flex-col gap-4">
         <StepCard
           step={1}
-          title="复制 Context JSON"
-          desc="AI Instruction + 标准 ProjectContext JSON"
+          title={t('exchange.step1.title')}
+          desc={t('exchange.step1.desc')}
           action={
             <Button
               size="sm"
@@ -79,8 +81,8 @@ export function AiExchangePage() {
 
         <StepCard
           step={2}
-          title="复制 AI Instruction"
-          desc="要求 AI 只返回 project_changes JSON"
+          title={t('exchange.step2.title')}
+          desc={t('exchange.step2.desc')}
           action={
             <Button
               variant="outline"
@@ -99,8 +101,8 @@ export function AiExchangePage() {
 
         <StepCard
           step={3}
-          title="粘贴 AI Response JSON"
-          desc="粘贴后做 JSON.parse + Schema 校验"
+          title={t('exchange.step3.title')}
+          desc={t('exchange.step3.desc')}
           action={
             <Button
               variant="outline"
@@ -108,11 +110,11 @@ export function AiExchangePage() {
               className="h-8"
               onClick={() => {
                 useChangesStore.getState().loadSample()
-                toast.success('已载入示例 Change JSON')
+                toast.success(t('exchange.sampleLoaded'))
               }}
             >
               <Download className="mr-1.5 h-3.5 w-3.5" />
-              载入示例
+              {t('exchange.loadSample')}
             </Button>
           }
         >
@@ -141,18 +143,18 @@ export function AiExchangePage() {
                 try {
                   const text = await readText()
                   if (!text) {
-                    toast.error('剪贴板为空')
+                    toast.error(t('exchange.clipboardEmpty'))
                     return
                   }
                   setResponseText(text)
-                  toast.success('已从系统剪贴板粘贴')
+                  toast.success(t('exchange.pastedFromClipboard'))
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : String(e))
                 }
               }}
             >
               <ClipboardPaste className="mr-1.5 h-3.5 w-3.5" />
-              从剪贴板粘贴
+              {t('exchange.pasteFromClipboard')}
             </Button>
             <Button
               size="sm"
@@ -160,7 +162,7 @@ export function AiExchangePage() {
               onClick={() => void handleParse()}
             >
               <Check className="mr-1.5 h-3.5 w-3.5" />
-              Parse Changes
+              {t('exchange.parseChanges')}
             </Button>
             <span
               className={`text-[11.5px] ${
@@ -172,21 +174,24 @@ export function AiExchangePage() {
               }`}
             >
               {parseError
-                ? `Invalid AI response${
+                ? `${t('exchange.parseInvalid')}${
                     parseError.path ? ` · ${parseError.path}` : ''
                   }${parseError.line ? ` · Line ${parseError.line}` : ''}: ${
                     parseError.reason
                   }`
                 : changes.length
-                  ? `${changes.length} changes detected · ${pending} 待处理`
-                  : '仅接受 version=1.0 / type=project_changes 的 JSON'}
+                  ? t('exchange.detected', {
+                      count: changes.length,
+                      pending,
+                    })
+                  : t('exchange.parseHint')}
             </span>
           </div>
         </StepCard>
 
         {!project && (
           <p className="text-xs text-muted-foreground">
-            请先打开一个本地项目，再生成 Context。
+            {t('exchange.needProjectHint')}
           </p>
         )}
       </div>

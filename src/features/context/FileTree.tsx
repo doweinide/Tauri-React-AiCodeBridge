@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Folder, FileText, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ProjectNode } from '@/lib/tauri/tauri-bindings'
@@ -91,6 +92,7 @@ interface FileTreeProps {
 }
 
 export function FileTree({ root }: FileTreeProps) {
+  const { t } = useTranslation()
   const structureSelected = useContextStore(s => s.structureSelected)
   const contentSelected = useContextStore(s => s.contentSelected)
   const expanded = useContextStore(s => s.expanded)
@@ -145,10 +147,10 @@ export function FileTree({ root }: FileTreeProps) {
             <ChevronRight className="h-3 w-3" />
           </button>
 
-          <span title="结构包含">
+          <span title={t('context.structureInclude')}>
             <CheckBox
               state={sState}
-              title="结构包含"
+              title={t('context.structureInclude')}
               onClick={e => {
                 e.stopPropagation()
                 if (isDir) toggleStructureDir(node)
@@ -158,11 +160,11 @@ export function FileTree({ root }: FileTreeProps) {
           </span>
 
           {isDir ? (
-            <span title="内容包含（该目录下文件）">
+            <span title={t('context.contentIncludeDir')}>
               <CheckBox
                 state={cState}
                 tone="accent"
-                title="内容包含"
+                title={t('context.contentInclude')}
                 onClick={e => {
                   e.stopPropagation()
                   toggleContentDir(node)
@@ -170,11 +172,11 @@ export function FileTree({ root }: FileTreeProps) {
               />
             </span>
           ) : (
-            <span title="内容包含">
+            <span title={t('context.contentInclude')}>
               <CheckBox
                 state={cState}
                 tone="accent"
-                title="内容包含"
+                title={t('context.contentInclude')}
                 onClick={e => {
                   e.stopPropagation()
                   toggleContentFile(node.path)
@@ -214,11 +216,11 @@ export function FileTree({ root }: FileTreeProps) {
       <div className="mb-1 flex items-center gap-3 px-2 text-[10px] text-muted-foreground">
         <span className="flex items-center gap-1">
           <span className="inline-block h-2.5 w-2.5 rounded-[3px] border border-primary bg-primary" />
-          结构（点行）
+          {t('context.structureClickRow')}
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block h-2.5 w-2.5 rounded-[3px] border border-sky-500 bg-sky-500" />
-          内容（点框）
+          {t('context.contentClickBox')}
         </span>
       </div>
       {(root.children ?? []).map(c => renderNode(c, 0))}

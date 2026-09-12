@@ -14,11 +14,10 @@ import { usePreferences, useSavePreferences } from '@/services/preferences'
 import { availableLanguages } from '@/i18n'
 import { logger } from '@/lib/logger'
 
-// Language display names (native names)
+// Language display names (native names) — zh / en only
 const languageNames: Record<string, string> = {
+  zh: '中文',
   en: 'English',
-  fr: 'Français',
-  ar: 'العربية',
 }
 
 export function AppearancePane() {
@@ -47,10 +46,10 @@ export function AppearancePane() {
       } else {
         // System language selected - detect and apply system locale
         const systemLocale = await locale()
-        const langCode = systemLocale?.split('-')[0]?.toLowerCase() ?? 'en'
+        const langCode = systemLocale?.split('-')[0]?.toLowerCase() ?? 'zh'
         const targetLang = availableLanguages.includes(langCode)
           ? langCode
-          : 'en'
+          : 'zh'
         await i18n.changeLanguage(targetLang)
       }
     } catch (error) {

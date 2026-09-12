@@ -11,8 +11,8 @@ import { logger } from '@/lib/logger'
  *
  * Priority:
  * 1. User's saved language preference (if set)
- * 2. System locale (if we have translations for it)
- * 3. English (fallback)
+ * 2. System locale if it is Chinese (`zh*`)
+ * 3. Chinese (default)
  *
  * @param savedLanguage - The user's saved language preference from preferences
  */
@@ -21,53 +21,42 @@ export async function initializeLanguage(
 ): Promise<void> {
   try {
     if (savedLanguage) {
-      // User has an explicit preference
       if (availableLanguages.includes(savedLanguage)) {
         await i18n.changeLanguage(savedLanguage)
         logger.info('Language set from user preference', {
           language: savedLanguage,
         })
       } else {
-        logger.warn('Saved language not available, using English', {
+        logger.warn('Saved language not available, using Chinese', {
           savedLanguage,
           availableLanguages,
         })
-        await i18n.changeLanguage('en')
+        await i18n.changeLanguage('zh')
       }
       return
     }
 
-    // No saved preference, try to detect system locale
     const systemLocale = await locale()
     logger.debug('Detected system locale', { systemLocale })
 
     if (systemLocale) {
-      // Extract the language code (e.g., "en-US" -> "en")
       const parts = systemLocale.split('-')
-      const langCode = (parts[0] ?? 'en').toLowerCase()
+      const langCode = (parts[0] ?? 'zh').toLowerCase()
 
-      if (availableLanguages.includes(langCode)) {
-        await i18n.changeLanguage(langCode)
-        logger.info('Language set from system locale', {
+      // Product default is Chinese; only switch when system is zh*
+      if (langCode.startsWith('zh') && availableLanguages.includes('zh')) {
+        await i18n.changeLanguage('zh')
+        logger.info('Language set to Chinese (default/system)', {
           systemLocale,
-          language: langCode,
         })
         return
       }
-
-      logger.debug('System locale not available in translations', {
-        systemLocale,
-        langCode,
-        availableLanguages,
-      })
     }
 
-    // Fallback to English
-    await i18n.changeLanguage('en')
-    logger.info('Language set to English (fallback)')
+    await i18n.changeLanguage('zh')
+    logger.info('Language set to Chinese (default)')
   } catch (error) {
     logger.error('Failed to initialize language', { error })
-    // Ensure we have some language set
-    await i18n.changeLanguage('en')
+    await i18n.changeLanguage('zh')
   }
 }

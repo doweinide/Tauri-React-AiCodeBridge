@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   CheckCheck,
   Copy,
@@ -61,13 +62,14 @@ function IconAction({
   )
 }
 
-const TABS: { id: PreviewTab; label: string }[] = [
-  { id: 'tree', label: 'Tree' },
-  { id: 'json', label: 'JSON' },
-  { id: 'raw', label: 'Raw' },
+const TABS: { id: PreviewTab; labelKey: string }[] = [
+  { id: 'tree', labelKey: 'context.tab.tree' },
+  { id: 'json', labelKey: 'context.tab.json' },
+  { id: 'raw', labelKey: 'context.tab.raw' },
 ]
 
 export function ContextBuilderPage() {
+  const { t } = useTranslation()
   const project = useProjectStore(s => s.project)
   const rescan = useProjectStore(s => s.rescan)
   const structureSelected = useContextStore(s => s.structureSelected)
@@ -109,8 +111,8 @@ export function ContextBuilderPage() {
   if (!project) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
-        <p className="text-sm">尚未打开项目</p>
-        <p className="text-xs">使用左上角项目切换器打开本地目录</p>
+        <p className="text-sm">{t('context.emptyTitle')}</p>
+        <p className="text-xs">{t('context.emptyHint')}</p>
       </div>
     )
   }
@@ -121,7 +123,7 @@ export function ContextBuilderPage() {
       await copyContext()
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
-      toast.success('已复制 Project Context JSON（结构 + 内容按当前勾选）')
+      toast.success(t('context.copySuccess'))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
     }
@@ -135,7 +137,7 @@ export function ContextBuilderPage() {
           <Input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="搜索文件…"
+            placeholder={t('context.search')}
             className="h-auto w-full min-w-0 border-none bg-transparent p-0 text-[12px] shadow-none outline-none focus-visible:ring-0"
           />
         </div>
@@ -149,15 +151,15 @@ export function ContextBuilderPage() {
             aria-hidden
           />
           <span className="mr-0.5 text-[10.5px] font-medium tracking-wide text-muted-foreground">
-            结构
+            {t('context.structure')}
           </span>
           <IconAction
-            label="全选结构"
+            label={t('context.selectAllStructure')}
             onClick={() => void selectAllStructure(project.tree, true)}
           >
             <CheckCheck className="h-3.5 w-3.5" />
           </IconAction>
-          <IconAction label="清空结构" onClick={clearStructure}>
+          <IconAction label={t('context.clearStructure')} onClick={clearStructure}>
             <Eraser className="h-3.5 w-3.5" />
           </IconAction>
         </div>
@@ -169,25 +171,25 @@ export function ContextBuilderPage() {
             aria-hidden
           />
           <span className="mr-0.5 text-[10.5px] font-medium tracking-wide text-muted-foreground">
-            内容
+            {t('context.content')}
           </span>
           <IconAction
-            label="全选内容"
+            label={t('context.selectAllContent')}
             onClick={() => selectAllContent(project.tree, true)}
           >
             <CheckCheck className="h-3.5 w-3.5" />
           </IconAction>
-          <IconAction label="清空内容" onClick={clearContent}>
+          <IconAction label={t('context.clearContent')} onClick={clearContent}>
             <Eraser className="h-3.5 w-3.5" />
           </IconAction>
         </div>
 
         <IconAction
-          label="将结构勾选同步为内容勾选"
+          label={t('context.syncStructureToContent')}
           tone="primary"
           onClick={() => {
             copyStructureToContent()
-            toast.success('已将结构勾选同步为内容勾选')
+            toast.success(t('context.syncDone'))
           }}
         >
           <MoveRight className="h-3.5 w-3.5" />
@@ -210,7 +212,7 @@ export function ContextBuilderPage() {
             onClick={() => void doCopy()}
           >
             <Copy className="mr-1 h-3 w-3" />
-            {copied ? 'Copied!' : 'Copy Context'}
+            {copied ? t('context.copied') : t('context.copyContext')}
           </Button>
         </div>
       </div>
@@ -228,13 +230,13 @@ export function ContextBuilderPage() {
           <div className="flex h-full min-h-0 min-w-0 flex-col border-r bg-background/40">
             <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2.5">
               <span className="text-[11px] font-semibold uppercase tracking-[.5px] text-muted-foreground">
-                File Tree
+                {t('context.fileTree')}
               </span>
               <span className="rounded-full bg-muted px-2 py-px text-[10.5px] font-medium text-muted-foreground">
-                {fileCount} files
+                {t('context.filesCount', { count: fileCount })}
               </span>
               <span className="ml-auto rounded-full bg-primary/10 px-2 py-px text-[10.5px] font-medium text-primary">
-                S {structureSelected.size} · C {contentSelected.size}
+                {t('context.scCount', { structure: structureSelected.size, content: contentSelected.size })}
               </span>
             </div>
             {project.tree ? <FileTree root={project.tree} /> : null}
@@ -256,11 +258,11 @@ export function ContextBuilderPage() {
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
                 >
-                  {tab.label}
+                  {t(tab.labelKey)}
                 </button>
               ))}
               <span className="ml-auto truncate text-[11px] text-muted-foreground">
-                结构与内容独立勾选 · Preview = 复制内容
+                {t('context.previewHint')}
               </span>
             </div>
 
@@ -276,7 +278,7 @@ export function ContextBuilderPage() {
                     <div className="flex max-h-[40%] min-h-0 shrink-0 flex-col gap-1.5">
                       <div className="flex flex-wrap items-center gap-1 px-1">
                         <span className="text-[11px] text-muted-foreground">
-                          内容文件 ·
+                          {t('context.contentFilesLabel')}
                         </span>
                         {(buildResult?.files ?? []).map(f => (
                           <button
@@ -302,7 +304,7 @@ export function ContextBuilderPage() {
                         />
                       ) : (
                         <p className="px-1 text-[11px] text-muted-foreground">
-                          选择文件后用 CodeMirror 查看完整内容
+                          {t('context.selectFileHint')}
                         </p>
                       )}
                     </div>
@@ -326,26 +328,26 @@ export function ContextBuilderPage() {
 
       <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-2 border-t bg-muted/30 px-3 py-2.5 sm:gap-[22px] sm:px-4">
         <Stat
-          label="Structure Files"
+          label={t('context.structureFiles')}
           value={String(buildResult?.structureFileCount ?? 0)}
         />
         <Stat
-          label="Content Files"
+          label={t('context.contentFiles')}
           value={String(buildResult?.contentFileCount ?? 0)}
           accent
         />
         <Stat
-          label="Characters"
+          label={t('context.characters')}
           value={formatNumber(buildResult?.totalChars ?? 0)}
         />
         <Stat
-          label="Estimated Tokens"
+          label={t('context.estimatedTokens')}
           value={`~${formatNumber(buildResult?.estimatedTokens ?? 0)}`}
           accent
-          hint="估算值 · chars / 4"
+          hint={t('context.tokenHint')}
         />
         <Stat
-          label="Project Total"
+          label={t('context.projectTotal')}
           value={`~${formatNumber(buildResult?.projectTotalTokens ?? 0)}`}
           muted
         />
@@ -354,9 +356,7 @@ export function ContextBuilderPage() {
             {(buildResult?.reductionPercent ?? 0).toFixed(1)}%
           </div>
           <div className="text-[10.5px] leading-[1.3] text-emerald-400">
-            Token
-            <br />
-            Reduction
+            {t('context.tokenReduction')}
           </div>
         </div>
       </div>

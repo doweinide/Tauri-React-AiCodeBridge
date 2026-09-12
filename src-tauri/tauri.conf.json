@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "tauri-app",
+  "productName": "AIContextTool",
   "version": "0.1.0",
   "identifier": "com.tauri-app.app",
   "build": {
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "tauri-app",
+        "title": "AIContextTool",
         "width": 1280,
         "height": 820,
         "minWidth": 780,

@@ -22,7 +22,18 @@
  */
 
 export { commands, type Result } from './bindings'
-export type { AppPreferences, JsonValue, RecoveryError } from './bindings'
+export type {
+  AppPreferences,
+  JsonValue,
+  RecoveryError,
+  ScannedProject,
+  ProjectNode,
+  RecentProject,
+  FileContent,
+  ContextBuildResult,
+  ChangeInput,
+  ApplyResult,
+} from './bindings'
 
 /**
  * Helper to unwrap a Result type, throwing on error

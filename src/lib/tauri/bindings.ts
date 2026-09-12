@@ -142,6 +142,105 @@ async updateQuickPaneShortcut(shortcut: string | null) : Promise<Result<null, st
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Open a local project directory and scan its file tree.
+ */
+async openProject(path: string) : Promise<Result<ScannedProject, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("open_project", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Re-scan an already known project path.
+ */
+async rescanProject(path: string) : Promise<Result<ScannedProject, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rescan_project", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * List recently opened projects.
+ */
+async getRecentProjects() : Promise<Result<RecentProject[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_recent_projects") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Validate that a path is an existing directory.
+ */
+async validateProjectPath(path: string) : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("validate_project_path", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Read file contents (with hash) for selected relative paths.
+ */
+async readProjectFiles(rootPath: string, paths: string[]) : Promise<Result<FileContent[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("read_project_files", { rootPath, paths }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Build full context text + stats for a mode: structure | selected | all
+ */
+async buildProjectContext(rootPath: string, mode: string, selectedPaths: string[]) : Promise<Result<ContextBuildResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("build_project_context", { rootPath, mode, selectedPaths }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Apply parsed AI changes to the local project.
+ */
+async applyAiChanges(rootPath: string, changes: ChangeInput[], allowOverwriteConflict: boolean) : Promise<Result<ApplyResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("apply_ai_changes", { rootPath, changes, allowOverwriteConflict }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Undo a previous apply by change set id.
+ */
+async undoAiChanges(changeSetId: string) : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("undo_ai_changes", { changeSetId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * List undo snapshots available for a project.
+ */
+async listUndoChangeSets(rootPath: string) : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_undo_change_sets", { rootPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -170,7 +269,33 @@ quick_pane_shortcut: string | null;
  * If None, uses system locale detection
  */
 language: string | null }
+export type ApplyResult = { changeSetId: string; applied: string[]; skipped: string[] }
+export type ChangeInput = { 
+/**
+ * "add" | "modify" | "delete"
+ */
+changeType: string; 
+/**
+ * Relative path inside project
+ */
+path: string; 
+/**
+ * New file content (required for add/modify)
+ */
+newContent: string | null; 
+/**
+ * Content fingerprint when context was created (modify only)
+ */
+expectedHash: string | null }
+export type ContextBuildResult = { text: string; files: FileContent[]; fileCount: number; totalChars: number; estimatedTokens: number; projectTotalBytes: number; projectTotalTokens: number; reductionPercent: number }
+export type FileContent = { path: string; content: string; hash: string; size: number }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
+export type ProjectNode = { name: string; 
+/**
+ * Path relative to project root, using forward slashes.
+ */
+path: string; nodeType: string; size: number | null; children: ProjectNode[] | null }
+export type RecentProject = { name: string; path: string; openedAt: string }
 /**
  * Error types for recovery operations (typed for frontend matching)
  */
@@ -195,6 +320,7 @@ export type RecoveryError =
  * JSON serialization/deserialization error
  */
 { type: "ParseError"; message: string }
+export type ScannedProject = { name: string; rootPath: string; tree: ProjectNode; fileCount: number; totalBytes: number }
 
 /** tauri-specta globals **/
 

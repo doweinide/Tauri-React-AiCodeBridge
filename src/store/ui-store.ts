@@ -1,13 +1,17 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
+export type WorkspacePage = 'context' | 'exchange' | 'review' | 'settings'
+
 interface UIState {
+  activePage: WorkspacePage
   leftSidebarVisible: boolean
   rightSidebarVisible: boolean
   commandPaletteOpen: boolean
   preferencesOpen: boolean
   lastQuickPaneEntry: string | null
 
+  setActivePage: (page: WorkspacePage) => void
   toggleLeftSidebar: () => void
   setLeftSidebarVisible: (visible: boolean) => void
   toggleRightSidebar: () => void
@@ -23,11 +27,15 @@ interface UIState {
 export const useUIStore = create<UIState>()(
   devtools(
     set => ({
+      activePage: 'context',
       leftSidebarVisible: true,
       rightSidebarVisible: true,
       commandPaletteOpen: false,
       preferencesOpen: false,
       lastQuickPaneEntry: null,
+
+      setActivePage: page =>
+        set({ activePage: page }, undefined, 'setActivePage'),
 
       toggleLeftSidebar: () =>
         set(

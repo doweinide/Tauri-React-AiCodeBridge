@@ -27,6 +27,24 @@ vi.mock('@tauri-apps/plugin-updater', () => ({
   check: vi.fn().mockResolvedValue(null),
 }))
 
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  open: vi.fn().mockResolvedValue(null),
+  save: vi.fn().mockResolvedValue(null),
+  message: vi.fn().mockResolvedValue(undefined),
+  ask: vi.fn().mockResolvedValue(true),
+  confirm: vi.fn().mockResolvedValue(true),
+}))
+
+const ok = <T>(data: T) => ({ status: 'ok', data })
+
+const emptyTree = {
+  name: 'demo',
+  path: '',
+  nodeType: 'dir',
+  size: null,
+  children: [],
+}
+
 // Mock typed Tauri bindings (tauri-specta generated)
 vi.mock('@/lib/tauri/tauri-bindings', () => ({
   commands: {
@@ -43,9 +61,58 @@ vi.mock('@/lib/tauri/tauri-bindings', () => ({
     cleanupOldRecoveryFiles: vi
       .fn()
       .mockResolvedValue({ status: 'ok', data: 0 }),
+    showQuickPane: vi.fn().mockResolvedValue(ok(null)),
+    dismissQuickPane: vi.fn().mockResolvedValue(ok(null)),
+    toggleQuickPane: vi.fn().mockResolvedValue(ok(null)),
+    getDefaultQuickPaneShortcut: vi
+      .fn()
+      .mockResolvedValue(ok('CommandOrControl+Shift+.')),
+    updateQuickPaneShortcut: vi.fn().mockResolvedValue(ok(null)),
+    openProject: vi.fn().mockResolvedValue(
+      ok({
+        name: 'demo',
+        rootPath: '/tmp/demo',
+        tree: emptyTree,
+        fileCount: 0,
+        totalBytes: 0,
+      })
+    ),
+    rescanProject: vi.fn().mockResolvedValue(
+      ok({
+        name: 'demo',
+        rootPath: '/tmp/demo',
+        tree: emptyTree,
+        fileCount: 0,
+        totalBytes: 0,
+      })
+    ),
+    getRecentProjects: vi.fn().mockResolvedValue(ok([])),
+    validateProjectPath: vi.fn().mockResolvedValue(ok(true)),
+    readProjectFiles: vi.fn().mockResolvedValue(ok([])),
+    buildProjectContext: vi.fn().mockResolvedValue(
+      ok({
+        text: '## 项目结构\n\ndemo/\n',
+        files: [],
+        fileCount: 0,
+        totalChars: 20,
+        estimatedTokens: 5,
+        projectTotalBytes: 0,
+        projectTotalTokens: 0,
+        reductionPercent: 0,
+      })
+    ),
+    applyAiChanges: vi
+      .fn()
+      .mockResolvedValue(
+        ok({ changeSetId: 'cs_test', applied: [], skipped: [] })
+      ),
+    undoAiChanges: vi.fn().mockResolvedValue(ok([])),
+    listUndoChangeSets: vi.fn().mockResolvedValue(ok([])),
   },
-  unwrapResult: vi.fn((result: { status: string; data?: unknown }) => {
-    if (result.status === 'ok') return result.data
-    throw result
-  }),
+  unwrapResult: vi.fn(
+    (result: { status: string; data?: unknown; error?: unknown }) => {
+      if (result.status === 'ok') return result.data
+      throw result.error
+    }
+  ),
 }))

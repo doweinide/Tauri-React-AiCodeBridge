@@ -8,6 +8,7 @@
 mod bindings;
 mod commands;
 mod platform;
+mod services;
 mod types;
 mod utils;
 

@@ -2,10 +2,12 @@
 //!
 //! This module serves as the main entry point for the Tauri application.
 //! Command implementations are organized in the `commands` module,
-//! and shared types are in the `types` module.
+//! shared types are in the `types` module, and platform helpers live in
+//! the `platform` module.
 
 mod bindings;
 mod commands;
+mod platform;
 mod types;
 mod utils;
 

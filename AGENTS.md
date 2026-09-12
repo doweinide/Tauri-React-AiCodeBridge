@@ -67,14 +67,14 @@ const handleAction = () => {
 ### Event-Driven Bridge
 
 - **Rust → React**: `app.emit("event-name", data)` → `listen("event-name", handler)`
-- **React → Rust**: Use typed commands from `@/lib/tauri-bindings` (tauri-specta)
+- **React → Rust**: Use typed commands from `@/lib/tauri/tauri-bindings` (tauri-specta)
 - **Commands**: All actions flow through centralized command system
 
 ### Tauri Command Pattern (tauri-specta)
 
 ```typescript
 // ✅ GOOD: Type-safe commands with Result handling
-import { commands } from '@/lib/tauri-bindings'
+import { commands } from '@/lib/tauri/tauri-bindings'
 
 const result = await commands.loadPreferences()
 if (result.status === 'ok') {

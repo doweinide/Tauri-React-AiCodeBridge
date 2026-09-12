@@ -9,7 +9,7 @@
 //! # Examples
 //!
 //! ```ignore
-//! use crate::utils::platform;
+//! use crate::platform;
 //!
 //! // Normalize Windows paths to forward slashes for frontend
 //! let normalized = platform::normalize_path_for_serialization(&some_path);
@@ -49,7 +49,7 @@ use std::path::Path;
 ///
 /// ```ignore
 /// use std::path::Path;
-/// use crate::utils::platform::normalize_path_for_serialization;
+/// use crate::platform::normalize_path_for_serialization;
 ///
 /// let path = Path::new("some/path/file.txt");
 /// let normalized = normalize_path_for_serialization(path);

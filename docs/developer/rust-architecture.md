@@ -9,16 +9,18 @@ src-tauri/src/
 ├── main.rs          # Entry point (just calls lib::run())
 ├── lib.rs           # App setup, plugins, startup logic
 ├── bindings.rs      # tauri-specta command registration
-├── types.rs         # Shared types, constants, validation
-├── commands/        # Command handlers by domain
-│   ├── mod.rs       # Re-exports all command modules
-│   ├── preferences.rs
-│   ├── notifications.rs
-│   ├── quick_pane.rs
-│   └── recovery.rs
-└── utils/           # Utility modules
-    ├── mod.rs
-    └── platform.rs  # Platform-specific helpers
+├── types/           # Shared types, constants, validation
+│   └── mod.rs
+├── platform/        # Platform-specific helpers
+│   └── mod.rs
+├── utils/           # Generic utility helpers
+│   └── mod.rs
+└── commands/        # Command handlers by domain
+    ├── mod.rs       # Re-exports all command modules
+    ├── preferences.rs
+    ├── notifications.rs
+    ├── quick_pane.rs
+    └── recovery.rs
 ```
 
 ## Adding New Commands
@@ -131,7 +133,7 @@ fn desktop_only() { /* ... */ }
 fn non_linux() { /* ... */ }
 ```
 
-Platform utilities live in `utils/platform.rs`.
+Platform utilities live in `platform/mod.rs`.
 
 ## Plugin Registration (lib.rs)
 
@@ -168,5 +170,5 @@ When adding new features:
 
 1. **New command domain?** Create new file in `commands/`
 2. **New shared types?** Add to `types.rs`
-3. **Platform-specific utils?** Add to `utils/platform.rs`
+3. **Platform-specific utils?** Add to `platform/mod.rs`
 4. **New plugin?** Register in `lib.rs` setup

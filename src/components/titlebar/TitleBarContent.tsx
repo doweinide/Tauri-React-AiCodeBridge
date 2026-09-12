@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { useUIStore } from '@/store/ui-store'
-import { executeCommand, useCommandContext } from '@/lib/commands'
+import { executeCommand } from '@/lib/commands'
+import { useCommandContext } from '@/hooks/use-command-context'
 import {
   PanelLeft,
   PanelLeftClose,

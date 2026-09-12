@@ -42,7 +42,7 @@ vi.mock('@tauri-apps/plugin-updater', () => ({
 }))
 
 // Mock typed Tauri bindings (tauri-specta generated)
-vi.mock('@/lib/tauri-bindings', () => ({
+vi.mock('@/lib/tauri/tauri-bindings', () => ({
   commands: {
     greet: vi.fn().mockResolvedValue('Hello, test!'),
     loadPreferences: vi
@@ -65,7 +65,7 @@ vi.mock('@/lib/tauri-bindings', () => ({
 
 ```typescript
 import { vi } from 'vitest'
-import { commands } from '@/lib/tauri-bindings'
+import { commands } from '@/lib/tauri/tauri-bindings'
 
 const mockCommands = vi.mocked(commands)
 
@@ -194,7 +194,7 @@ fn test_file_operations() {
 When adding new Tauri commands, update `src/test/setup.ts`:
 
 ```typescript
-vi.mock('@/lib/tauri-bindings', () => ({
+vi.mock('@/lib/tauri/tauri-bindings', () => ({
   commands: {
     // ... existing mocks
     myNewCommand: vi.fn().mockResolvedValue({ status: 'ok', data: null }),

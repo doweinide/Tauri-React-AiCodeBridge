@@ -17,7 +17,7 @@ vite.config.ts
 # Generated files
 package-lock.json
 .git/
-src/lib/bindings.ts
+src/lib/tauri/bindings.ts
 
 # Logs
 *.log

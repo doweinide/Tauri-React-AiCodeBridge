@@ -6,7 +6,7 @@
  *
  * @example
  * ```typescript
- * import { commands, unwrapResult } from '@/lib/tauri-bindings'
+ * import { commands, unwrapResult } from '@/lib/tauri/tauri-bindings'
  *
  * // In TanStack Query - let errors propagate
  * const prefs = unwrapResult(await commands.loadPreferences())

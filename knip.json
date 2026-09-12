@@ -6,7 +6,7 @@
     "src/components/ui/**",
     "src/test/**",
     "**/index.ts",
-    "src/lib/platform-strings.ts"
+    "src/lib/platform/platform-strings.ts"
   ],
   "ignoreDependencies": [
     "@tauri-apps/*",

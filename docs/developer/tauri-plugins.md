@@ -140,7 +140,7 @@ sendNotification({
 Or use the typed command:
 
 ```typescript
-import { commands } from '@/lib/tauri-bindings'
+import { commands } from '@/lib/tauri/tauri-bindings'
 await commands.sendNativeNotification('Title', 'Body text')
 ```
 

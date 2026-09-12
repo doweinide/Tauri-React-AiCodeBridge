@@ -151,7 +151,7 @@ await commands.updateQuickPaneShortcut(null)
 
 ### Customizing the Pane Content
 
-Edit `src/components/quick-pane/QuickPaneApp.tsx`:
+Edit `src/features/quick-pane/QuickPaneApp.tsx`:
 
 ```typescript
 export default function QuickPaneApp() {

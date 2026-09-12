@@ -1,17 +1,21 @@
+import { QueryClientProvider } from '@tanstack/react-query'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import '@/i18n'
+import { queryClient } from '@/lib/query-client'
+import { ErrorBoundary } from '@/components/error-boundary'
+import { ThemeProvider } from './providers'
+import { MainWindow } from '@/components/layout/MainWindow'
+import { useSquareCornersEffect } from '@/hooks/use-square-corners-effect'
 import { useEffect } from 'react'
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
-import { initializeCommandSystem } from './lib/commands'
-import { buildAppMenu, setupMenuLanguageListener } from './lib/menu'
-import { initializeLanguage } from './i18n/language-init'
-import { logger } from './lib/logger'
-import { cleanupOldFiles } from './lib/recovery'
-import { commands } from './lib/tauri-bindings'
+import { initializeCommandSystem } from '@/lib/commands'
+import { buildAppMenu, setupMenuLanguageListener } from '@/lib/menu'
+import { initializeLanguage } from '@/i18n/language-init'
+import { logger } from '@/lib/logger'
+import { cleanupOldFiles } from '@/lib/recovery'
+import { commands } from '@/lib/tauri/tauri-bindings'
 import './App.css'
-import { MainWindow } from './components/layout/MainWindow'
-import { ThemeProvider } from './components/ThemeProvider'
-import { ErrorBoundary } from './components/ErrorBoundary'
-import { useSquareCornersEffect } from './hooks/useSquareCornersEffect'
 
 function App() {
   useSquareCornersEffect()
@@ -113,9 +117,12 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <MainWindow />
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <MainWindow />
+        </ThemeProvider>
+        <ReactQueryDevtools initialIsOpen={false} />
+      </QueryClientProvider>
     </ErrorBoundary>
   )
 }

@@ -16,7 +16,7 @@ This app uses tauri-specta to generate TypeScript bindings from Rust commands, p
 ### Calling Commands
 
 ```typescript
-import { commands, type AppPreferences } from '@/lib/tauri-bindings'
+import { commands, type AppPreferences } from '@/lib/tauri/tauri-bindings'
 
 // Commands return Result types for error handling
 const result = await commands.loadPreferences()
@@ -57,7 +57,7 @@ toast.success('Saved!')
 For cases where you want errors to propagate (throw) rather than handle them inline, use the `unwrapResult` helper:
 
 ```typescript
-import { commands, unwrapResult } from '@/lib/tauri-bindings'
+import { commands, unwrapResult } from '@/lib/tauri/tauri-bindings'
 
 // Throws on error, returns data on success
 const preferences = unwrapResult(await commands.loadPreferences())
@@ -74,7 +74,7 @@ const preferences = unwrapResult(await commands.loadPreferences())
 
 ```typescript
 import { useQuery } from '@tanstack/react-query'
-import { commands, unwrapResult } from '@/lib/tauri-bindings'
+import { commands, unwrapResult } from '@/lib/tauri/tauri-bindings'
 
 const { data, error } = useQuery({
   queryKey: ['preferences'],
@@ -140,12 +140,12 @@ pub fn generate_bindings() -> Builder<tauri::Wry> {
 npm run rust:bindings
 ```
 
-This runs `cargo test export_bindings -- --ignored` which generates `src/lib/bindings.ts`.
+This runs `cargo test export_bindings -- --ignored` which generates `src/lib/tauri/bindings.ts`.
 
 ### 5. Use in frontend
 
 ```typescript
-import { commands, type MyType } from '@/lib/tauri-bindings'
+import { commands, type MyType } from '@/lib/tauri/tauri-bindings'
 
 const result = await commands.myNewCommand('arg')
 ```
@@ -155,7 +155,7 @@ const result = await commands.myNewCommand('arg')
 Always commit:
 
 - Rust changes (`src-tauri/src/lib.rs`, `src-tauri/src/bindings.rs`)
-- Generated TypeScript (`src/lib/bindings.ts`)
+- Generated TypeScript (`src/lib/tauri/bindings.ts`)
 
 ## File Structure
 
@@ -208,7 +208,7 @@ Mock the commands in tests:
 
 ```typescript
 // src/test/setup.ts
-vi.mock('@/lib/tauri-bindings', () => ({
+vi.mock('@/lib/tauri/tauri-bindings', () => ({
   commands: {
     loadPreferences: vi
       .fn()

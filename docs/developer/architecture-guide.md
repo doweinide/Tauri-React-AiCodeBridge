@@ -233,7 +233,7 @@ All Tauri commands use [tauri-specta](https://github.com/specta-rs/tauri-specta)
 
 ```typescript
 // ✅ GOOD: Type-safe with autocomplete
-import { commands } from '@/lib/tauri-bindings'
+import { commands } from '@/lib/tauri/tauri-bindings'
 
 const result = await commands.loadPreferences()
 if (result.status === 'ok') {

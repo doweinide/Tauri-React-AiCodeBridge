@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { ShortcutPicker } from '../ShortcutPicker'
 import { SettingsField, SettingsSection } from '../shared/SettingsComponents'
 import { usePreferences, useSavePreferences } from '@/services/preferences'
-import { commands } from '@/lib/tauri-bindings'
+import { commands } from '@/lib/tauri/tauri-bindings'
 import { logger } from '@/lib/logger'
 
 export function GeneralPane() {

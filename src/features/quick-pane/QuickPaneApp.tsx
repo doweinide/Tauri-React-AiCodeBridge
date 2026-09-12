@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { emit, listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { commands } from '@/lib/tauri-bindings'
+import { commands } from '@/lib/tauri/tauri-bindings'
 import { logger } from '@/lib/logger'
 
 /** Dismiss the quick pane window, logging any errors */

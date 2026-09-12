@@ -1,6 +1,5 @@
 // Command system exports
 export * from './registry'
-export * from '../../hooks/use-command-context'
 import { navigationCommands } from './navigation-commands'
 import { windowCommands } from './window-commands'
 import { notificationCommands } from './notification-commands'

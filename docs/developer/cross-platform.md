@@ -348,7 +348,7 @@ For opacity transitions on Windows title bars, use `transform-gpu` to fix WebKit
 | File                                   | Purpose                      |
 | -------------------------------------- | ---------------------------- |
 | `src/hooks/use-platform.ts`            | Platform detection hooks     |
-| `src/lib/platform-strings.ts`          | Platform-specific UI strings |
+| `src/lib/platform/platform-strings.ts` | Platform-specific UI strings |
 | `src/components/titlebar/TitleBar.tsx` | Platform-aware title bar     |
-| `src-tauri/src/utils/platform.rs`      | Rust platform utilities      |
+| `src-tauri/src/platform/mod.rs`        | Rust platform utilities      |
 | `src-tauri/tauri.*.conf.json`          | Platform-specific configs    |

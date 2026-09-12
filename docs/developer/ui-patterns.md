@@ -91,7 +91,7 @@ Then use with Tailwind: `bg-success text-success-foreground`
 
 ### How It Works
 
-1. **ThemeProvider** (`src/components/ThemeProvider.tsx`) manages theme state
+1. **ThemeProvider** (`src/app/providers/ThemeProvider.tsx`) manages theme state
 2. Adds `.dark` class to `<html>` element when dark mode is active
 3. CSS variables in `.dark` override `:root` values
 4. Tailwind's `dark:` variant applies styles conditionally

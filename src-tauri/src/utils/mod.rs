@@ -1,3 +1,3 @@
-//! Utility modules for cross-platform support and common operations.
-
-pub mod platform;
+//! Generic utility helpers.    
+//!
+//! Keep this module small. Platform-specific code lives in `crate::platform`.

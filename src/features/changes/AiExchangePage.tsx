@@ -7,18 +7,16 @@ import { AI_INSTRUCTION } from '@/lib/protocol'
 import { useProjectStore } from '@/features/project/project-store'
 import { useContextStore } from '@/features/context/context-store'
 import { useChangesStore } from '@/features/changes/changes-store'
-import { readProjectFiles, contextCopyText } from '@/services/project'
+import { contextCopyText } from '@/services/project'
 import { useUIStore } from '@/store/ui-store'
 
 export function AiExchangePage() {
   const project = useProjectStore(s => s.project)
-  const contentSelected = useContextStore(s => s.contentSelected)
   const fileHashes = useContextStore(s => s.fileHashes)
-  const protocolContext = useContextStore(s => s.protocolContext)
   const refreshPreview = useContextStore(s => s.refreshPreview)
   const responseText = useChangesStore(s => s.responseText)
   const setResponseText = useChangesStore(s => s.setResponseText)
-  const parse = useChangesStore(s => s.parse)
+  const parseFromProject = useChangesStore(s => s.parseFromProject)
   const parseError = useChangesStore(s => s.parseError)
   const changes = useChangesStore(s => s.changes)
   const setActivePage = useUIStore(s => s.setActivePage)
@@ -46,23 +44,8 @@ export function AiExchangePage() {
       toast.error('请先打开项目')
       return
     }
-    const localContents: Record<string, string> = {}
-    const allSelected = [...contentSelected]
-    if (allSelected.length > 0) {
-      try {
-        const files = await readProjectFiles(project.rootPath, allSelected)
-        for (const f of files) localContents[f.path] = f.content
-      } catch {
-        // continue with empty contents
-      }
-    }
-    // Also try reading currently selected files from last build for MODIFY baselines
-    if (protocolContext) {
-      for (const f of protocolContext.files) {
-        localContents[f.path] = f.content
-      }
-    }
-    parse(localContents, fileHashes)
+    // Baselines come from live project files (not just Context selection).
+    await parseFromProject(project.rootPath, fileHashes)
     const st = useChangesStore.getState()
     if (st.changes.length > 0) {
       toast.success(`Schema 校验通过 · 识别到 ${st.changes.length} 个变更`)

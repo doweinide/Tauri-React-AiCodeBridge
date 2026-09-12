@@ -7,7 +7,7 @@ import {
   ResizablePanelGroup,
 } from '@/components/ui/resizable'
 import { cn } from '@/lib/utils'
-import { CodeViewer } from '@/components/code'
+import { MonacoDiff } from '@/components/code'
 import { useProjectStore } from '@/features/project/project-store'
 import {
   useChangesStore,
@@ -294,40 +294,19 @@ export function ChangeReviewPage() {
             </div>
           )}
 
-          {/* Side-by-side Current | AI Changes */}
-          <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-2">
-            <div className="flex min-h-0 min-w-0 flex-col border-b md:border-r md:border-b-0">
-              <div className="shrink-0 border-b bg-muted/30 px-3 py-1.5 text-[11px] font-medium text-muted-foreground">
-                Current
-              </div>
-              <div className="min-h-0 flex-1 overflow-hidden p-2">
-                <CodeViewer
-                  value={
-                    active?.type === 'add'
-                      ? '// (new file)'
-                      : (active?.oldContent ?? '')
-                  }
-                  className="h-full"
-                  minHeight="100%"
-                />
-              </div>
-            </div>
-            <div className="flex min-h-0 min-w-0 flex-col">
-              <div className="shrink-0 border-b bg-muted/30 px-3 py-1.5 text-[11px] font-medium text-muted-foreground">
-                AI Changes
-              </div>
-              <div className="min-h-0 flex-1 overflow-hidden p-2">
-                <CodeViewer
-                  value={
-                    active?.type === 'delete'
-                      ? '// (file will be deleted)'
-                      : (active?.newContent ?? '')
-                  }
-                  className="h-full"
-                  minHeight="100%"
-                />
-              </div>
-            </div>
+          {/* Monaco DiffEditor: left Current | right AI Changes */}
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden p-0">
+            {active ? (
+              <MonacoDiff
+                path={active.path}
+                original={
+                  active.type === 'add' ? '' : (active.oldContent ?? '')
+                }
+                modified={
+                  active.type === 'delete' ? '' : (active.newContent ?? '')
+                }
+              />
+            ) : null}
           </div>
         </div>
       </ResizablePanel>

@@ -2,12 +2,15 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import {
   parseProjectChanges,
-  changesToApplyInputs,
   SAMPLE_CHANGE_JSON,
   type ParseErrorDetail,
   type ProjectChange,
 } from '@/lib/protocol'
-import { applyAiChanges, undoAiChanges } from '@/services/project'
+import {
+  applyAiChanges,
+  undoAiChanges,
+  readProjectFiles,
+} from '@/services/project'
 import type { ChangeInput } from '@/lib/tauri/tauri-bindings'
 import { diffForAdd, diffForDelete, diffLines, type DiffLine } from '@/lib/diff'
 
@@ -47,10 +50,15 @@ interface ChangesState {
 
   setResponseText: (text: string) => void
   loadSample: () => void
-  parse: (
-    localContents: Record<string, string>,
-    fileHashes: Record<string, string>
-  ) => void
+  /**
+   * Parse AI JSON and load current on-disk baselines for MODIFY/DELETE.
+   * Diff left side always reflects the live project file, not only
+   * structure/content selection from Context Builder.
+   */
+  parseFromProject: (
+    rootPath: string,
+    fileHashes?: Record<string, string>
+  ) => Promise<void>
   selectChange: (id: string) => void
   setChangeStatus: (id: string, status: ChangeStatus) => void
   applyOne: (
@@ -105,7 +113,7 @@ export const useChangesStore = create<ChangesState>()(
           'loadSample'
         ),
 
-      parse: (localContents, fileHashes) => {
+      parseFromProject: async (rootPath, fileHashes = {}) => {
         const result = parseProjectChanges(get().responseText)
         if (!result.ok) {
           set(
@@ -120,25 +128,51 @@ export const useChangesStore = create<ChangesState>()(
           )
           return
         }
-        const changes: ReviewChange[] = result.data.changes.map(
+
+        const parsedChanges = result.data.changes
+        // Always read current disk content for non-ADD ops so Diff left pane is real.
+        const baselinePaths = parsedChanges
+          .filter(c => c.operation === 'modify' || c.operation === 'delete')
+          .map(c => c.path)
+
+        const diskMap: Record<string, string> = {}
+        const diskHashes: Record<string, string> = {}
+        if (baselinePaths.length > 0) {
+          try {
+            const files = await readProjectFiles(rootPath, baselinePaths)
+            for (const f of files) {
+              diskMap[f.path] = f.content
+              diskHashes[f.path] = f.hash
+            }
+          } catch {
+            // Missing files stay empty on the left pane
+          }
+        }
+
+        const changes: ReviewChange[] = parsedChanges.map(
           (c: ProjectChange) => {
-            const oldContent =
-              c.operation === 'add' ? null : (localContents[c.path] ?? '')
+            const isAdd = c.operation === 'add'
+            const oldContent = isAdd ? null : (diskMap[c.path] ?? '')
+            const newContent = c.operation === 'delete' ? null : (c.content ?? '')
+            // Prefer context-created hash for external-change detection; fall back to disk hash.
+            const expectedHash =
+              fileHashes[c.path] ?? diskHashes[c.path] ?? null
             return {
               id: nextId(),
               type: c.operation,
               path: c.path,
               status: 'pending',
               oldContent,
-              newContent: c.content ?? null,
-              expectedHash: fileHashes[c.path] ?? null,
-              diff: buildDiff(c.operation, oldContent, c.content ?? null),
+              newContent,
+              expectedHash,
+              diff: buildDiff(c.operation, oldContent, newContent),
             }
           }
         )
+
         set(
           {
-            parsed: result.data.changes,
+            parsed: parsedChanges,
             changes,
             parseError: null,
             activeId: changes[0]?.id ?? null,
@@ -331,6 +365,3 @@ export function pendingCount(changes: ReviewChange[]): number {
   return changes.filter(c => c.status === 'pending' || c.status === 'accepted')
     .length
 }
-
-// keep changesToApplyInputs imported for type re-export convenience
-void changesToApplyInputs

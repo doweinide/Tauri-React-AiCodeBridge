@@ -35,6 +35,14 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   confirm: vi.fn().mockResolvedValue(true),
 }))
 
+// Monaco is heavy and uses workers; stub for jsdom tests
+vi.mock('@monaco-editor/react', () => ({
+  DiffEditor: () => null,
+  Editor: () => null,
+  loader: { config: vi.fn() },
+}))
+vi.mock('@/components/code/monaco-setup', () => ({}))
+
 const ok = <T>(data: T) => ({ status: 'ok', data })
 
 const emptyTree = {

@@ -1,44 +1,75 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { buildProjectContext } from '@/services/project'
-import type { ContextBuildResult } from '@/lib/tauri/tauri-bindings'
-import type { ProjectNode } from '@/lib/tauri/tauri-bindings'
+import {
+  fetchProjectContext,
+  toProjectContext,
+  contextCopyText,
+  contextJsonText,
+  listAllFilePaths,
+} from '@/services/project'
+import type {
+  ContextBuildResult,
+  ProjectNode,
+} from '@/lib/tauri/tauri-bindings'
+import type { ProjectContext } from '@/lib/protocol'
 import { collectFilePaths } from '@/features/project/project-store'
 
-export type ContextMode = 'structure' | 'selected' | 'all'
+export type PreviewTab = 'tree' | 'json' | 'raw'
 
 interface ContextState {
-  selected: Set<string>
+  /** Files included in the pruned structure tree */
+  structureSelected: Set<string>
+  /** Files whose full content is sent in files[] */
+  contentSelected: Set<string>
   expanded: Set<string>
   search: string
-  previewMode: ContextMode
-  preview: ContextBuildResult | null
+  previewTab: PreviewTab
+  buildResult: ContextBuildResult | null
+  protocolContext: ProjectContext | null
+  previewText: string
   building: boolean
   lastError: string | null
-  /** content hashes from last selected-files build, for conflict detection */
   fileHashes: Record<string, string>
+  selectedFileForCode: string | null
 
   toggleExpand: (path: string) => void
   setSearch: (q: string) => void
-  toggleFile: (path: string) => void
-  toggleDir: (node: ProjectNode, on?: boolean) => void
-  selectAll: (root: ProjectNode, on: boolean) => void
-  setPreviewMode: (mode: ContextMode) => void
-  refreshPreview: (rootPath: string, root: ProjectNode) => Promise<void>
+  /** Toggle structure inclusion for a file path */
+  toggleStructureFile: (path: string) => void
+  /** Recursively select/deselect structure for a directory */
+  toggleStructureDir: (node: ProjectNode, on?: boolean) => void
+  /** Toggle content inclusion for a file path */
+  toggleContentFile: (path: string) => void
+  /** Recursively select/deselect content for a directory */
+  toggleContentDir: (node: ProjectNode, on?: boolean) => void
+  selectAllStructure: (root: ProjectNode, on: boolean) => Promise<void>
+  selectAllContent: (root: ProjectNode, on: boolean) => void
+  clearStructure: () => void
+  clearContent: () => void
+  /** Copy structure selection to content (files currently in structure) */
+  copyStructureToContent: () => void
+  setPreviewTab: (tab: PreviewTab) => void
+  setSelectedFileForCode: (path: string | null) => void
+  refreshPreview: (rootPath: string) => Promise<void>
+  copyContext: () => Promise<string>
   reset: () => void
 }
 
 export const useContextStore = create<ContextState>()(
   devtools(
     (set, get) => ({
-      selected: new Set(),
+      structureSelected: new Set(),
+      contentSelected: new Set(),
       expanded: new Set(),
       search: '',
-      previewMode: 'selected',
-      preview: null,
+      previewTab: 'tree',
+      buildResult: null,
+      protocolContext: null,
+      previewText: '',
       building: false,
       lastError: null,
       fileHashes: {},
+      selectedFileForCode: null,
 
       toggleExpand: path =>
         set(
@@ -54,23 +85,23 @@ export const useContextStore = create<ContextState>()(
 
       setSearch: q => set({ search: q }, undefined, 'setSearch'),
 
-      toggleFile: path =>
+      toggleStructureFile: path =>
         set(
           state => {
-            const next = new Set(state.selected)
+            const next = new Set(state.structureSelected)
             if (next.has(path)) next.delete(path)
             else next.add(path)
-            return { selected: next }
+            return { structureSelected: next }
           },
           undefined,
-          'toggleFile'
+          'toggleStructureFile'
         ),
 
-      toggleDir: (node, on) => {
+      toggleStructureDir: (node, on) => {
         const files = collectFilePaths(node)
         set(
           state => {
-            const next = new Set(state.selected)
+            const next = new Set(state.structureSelected)
             const allSelected =
               files.length > 0 && files.every(p => next.has(p))
             const shouldSelect = on ?? !allSelected
@@ -78,43 +109,110 @@ export const useContextStore = create<ContextState>()(
               if (shouldSelect) next.add(f)
               else next.delete(f)
             }
-            return { selected: next }
+            return { structureSelected: next }
           },
           undefined,
-          'toggleDir'
+          'toggleStructureDir'
         )
       },
 
-      selectAll: (root, on) => {
+      toggleContentFile: path =>
+        set(
+          state => {
+            const next = new Set(state.contentSelected)
+            if (next.has(path)) next.delete(path)
+            else next.add(path)
+            return { contentSelected: next }
+          },
+          undefined,
+          'toggleContentFile'
+        ),
+
+      toggleContentDir: (node, on) => {
+        const files = collectFilePaths(node)
+        set(
+          state => {
+            const next = new Set(state.contentSelected)
+            const allSelected =
+              files.length > 0 && files.every(p => next.has(p))
+            const shouldSelect = on ?? !allSelected
+            for (const f of files) {
+              if (shouldSelect) next.add(f)
+              else next.delete(f)
+            }
+            return { contentSelected: next }
+          },
+          undefined,
+          'toggleContentDir'
+        )
+      },
+
+      selectAllStructure: async (root, on) => {
+        if (!on) {
+          set({ structureSelected: new Set() }, undefined, 'selectAllStructure')
+          return
+        }
+        // Prefer all files from last known project scan via collect on root
         const files = collectFilePaths(root)
         set(
-          { selected: on ? new Set(files) : new Set() },
+          { structureSelected: new Set(files) },
           undefined,
-          'selectAll'
+          'selectAllStructure'
         )
       },
 
-      setPreviewMode: mode =>
-        set({ previewMode: mode }, undefined, 'setPreviewMode'),
+      selectAllContent: (root, on) => {
+        const files = collectFilePaths(root)
+        set(
+          { contentSelected: on ? new Set(files) : new Set() },
+          undefined,
+          'selectAllContent'
+        )
+      },
 
-      refreshPreview: async (rootPath, root) => {
-        const { previewMode, selected } = get()
+      clearStructure: () =>
+        set({ structureSelected: new Set() }, undefined, 'clearStructure'),
+      clearContent: () =>
+        set({ contentSelected: new Set() }, undefined, 'clearContent'),
+
+      copyStructureToContent: () =>
+        set(
+          state => ({
+            contentSelected: new Set(state.structureSelected),
+          }),
+          undefined,
+          'copyStructureToContent'
+        ),
+
+      setPreviewTab: tab =>
+        set({ previewTab: tab }, undefined, 'setPreviewTab'),
+      setSelectedFileForCode: path =>
+        set({ selectedFileForCode: path }, undefined, 'setSelectedFileForCode'),
+
+      refreshPreview: async rootPath => {
+        const { structureSelected, contentSelected } = get()
         set({ building: true, lastError: null }, undefined, 'refresh/start')
         try {
-          const paths =
-            previewMode === 'all'
-              ? collectFilePaths(root)
-              : previewMode === 'selected'
-                ? [...selected]
-                : []
-          const preview = await buildProjectContext(
+          const buildResult = await fetchProjectContext(
             rootPath,
-            previewMode,
-            paths
+            [...structureSelected],
+            [...contentSelected]
           )
+          const protocolContext = toProjectContext(buildResult)
+          const previewText = contextJsonText(protocolContext)
           const fileHashes: Record<string, string> = {}
-          for (const f of preview.files) fileHashes[f.path] = f.hash
-          set({ preview, building: false, fileHashes }, undefined, 'refresh/ok')
+          for (const f of buildResult.files) fileHashes[f.path] = f.hash
+          set(
+            {
+              buildResult,
+              protocolContext,
+              previewText,
+              building: false,
+              fileHashes,
+            },
+            undefined,
+            'refresh/ok'
+          )
         } catch (e) {
           set(
             {
@@ -127,15 +225,27 @@ export const useContextStore = create<ContextState>()(
         }
       },
 
+      copyContext: async () => {
+        const ctx = get().protocolContext
+        if (!ctx) throw new Error('No context to copy')
+        const text = contextCopyText(ctx)
+        await navigator.clipboard.writeText(text)
+        return text
+      },
+
       reset: () =>
         set(
           {
-            selected: new Set(),
+            structureSelected: new Set(),
+            contentSelected: new Set(),
             expanded: new Set(),
             search: '',
-            previewMode: 'selected',
-            preview: null,
+            previewTab: 'tree',
+            buildResult: null,
+            protocolContext: null,
+            previewText: '',
             fileHashes: {},
+            selectedFileForCode: null,
           },
           undefined,
           'reset'
@@ -147,4 +257,15 @@ export const useContextStore = create<ContextState>()(
 
 export function formatNumber(n: number): string {
   return n.toLocaleString()
+}
+
+/** Expand structure selection when user picks a directory path prefix. */
+export async function expandStructureFromRoot(
+  rootPath: string,
+  dirPath: string
+): Promise<string[]> {
+  const all = await listAllFilePaths(rootPath)
+  if (!dirPath || dirPath === '.') return all
+  const prefix = dirPath.endsWith('/') ? dirPath : `${dirPath}/`
+  return all.filter(p => p === dirPath || p.startsWith(prefix))
 }

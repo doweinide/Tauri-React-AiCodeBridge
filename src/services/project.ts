@@ -1,17 +1,22 @@
-/**
- * Application-level services: Tauri IPC for project / context / changes.
- */
-
-import { commands, unwrapResult } from '@/lib/tauri/tauri-bindings'
+import {
+  commands,
+  unwrapResult,
+  type ContextBuildResult,
+} from '@/lib/tauri/tauri-bindings'
 import type {
   ApplyResult,
   ChangeInput,
-  ContextBuildResult,
   FileContent,
   ProjectNode,
   RecentProject,
   ScannedProject,
 } from '@/lib/tauri/tauri-bindings'
+import {
+  createProjectContext,
+  serializeContextForCopy,
+  serializeContextJson,
+  type ProjectContext,
+} from '@/lib/protocol'
 
 export type { ProjectNode, ScannedProject, RecentProject, FileContent }
 
@@ -27,14 +32,49 @@ export async function getRecentProjects(): Promise<RecentProject[]> {
   return unwrapResult(await commands.getRecentProjects())
 }
 
-export async function buildProjectContext(
+/**
+ * Build structured context with independent structure / content selections.
+ * `structurePaths` prune the tree; `contentPaths` are read into files[].
+ */
+export async function fetchProjectContext(
   rootPath: string,
-  mode: 'structure' | 'selected' | 'all',
-  selectedPaths: string[]
+  structurePaths: string[],
+  contentPaths: string[]
 ): Promise<ContextBuildResult> {
   return unwrapResult(
-    await commands.buildProjectContext(rootPath, mode, selectedPaths)
+    await commands.buildProjectContext(rootPath, structurePaths, contentPaths)
   )
+}
+
+export async function listAllFilePaths(rootPath: string): Promise<string[]> {
+  return unwrapResult(await commands.listAllFilePaths(rootPath))
+}
+
+/** Build protocol ProjectContext from structured Rust result. */
+export function toProjectContext(result: ContextBuildResult): ProjectContext {
+  return createProjectContext({
+    projectName: result.projectName,
+    structure: result.structure,
+    files: result.files.map(f => ({
+      path: f.path,
+      content: f.content,
+      hash: f.hash,
+      size: f.size,
+    })),
+    mode: result.mode as 'structure' | 'selected' | 'all' | 'custom' | 'empty',
+    structureFileCount: result.structureFileCount,
+    contentFileCount: result.contentFileCount,
+    totalChars: result.totalChars,
+    estimatedTokens: result.estimatedTokens,
+  })
+}
+
+export function contextCopyText(context: ProjectContext): string {
+  return serializeContextForCopy(context)
+}
+
+export function contextJsonText(context: ProjectContext): string {
+  return serializeContextJson(context)
 }
 
 export async function readProjectFiles(
@@ -54,8 +94,11 @@ export async function applyAiChanges(
   )
 }
 
-export async function undoAiChanges(changeSetId: string): Promise<string[]> {
-  return unwrapResult(await commands.undoAiChanges(changeSetId))
+export async function undoAiChanges(
+  rootPath: string,
+  changeSetId: string
+): Promise<string[]> {
+  return unwrapResult(await commands.undoAiChanges(rootPath, changeSetId))
 }
 
 export async function listUndoChangeSets(rootPath: string): Promise<string[]> {

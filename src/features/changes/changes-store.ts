@@ -1,11 +1,22 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { parseAiResponse, type ParsedChange } from '@/lib/ai-response'
+import {
+  parseProjectChanges,
+  changesToApplyInputs,
+  SAMPLE_CHANGE_JSON,
+  type ParseErrorDetail,
+  type ProjectChange,
+} from '@/lib/protocol'
 import { applyAiChanges, undoAiChanges } from '@/services/project'
 import type { ChangeInput } from '@/lib/tauri/tauri-bindings'
 import { diffForAdd, diffForDelete, diffLines, type DiffLine } from '@/lib/diff'
 
-export type ChangeStatus = 'pending' | 'applied' | 'rejected'
+export type ChangeStatus =
+  | 'pending'
+  | 'accepted'
+  | 'rejected'
+  | 'applied'
+  | 'failed'
 
 export interface ReviewChange {
   id: string
@@ -20,15 +31,22 @@ export interface ReviewChange {
 
 interface ChangesState {
   responseText: string
-  parseError: string | null
+  parseError: ParseErrorDetail | null
+  parsed: ProjectChange[] | null
   changes: ReviewChange[]
   activeId: string | null
   applying: boolean
   lastChangeSetId: string | null
   conflictPath: string | null
+  applySummary: {
+    applied: number
+    added: number
+    modified: number
+    deleted: number
+  } | null
 
   setResponseText: (text: string) => void
-  loadSample: (sample: string) => void
+  loadSample: () => void
   parse: (
     localContents: Record<string, string>,
     fileHashes: Record<string, string>
@@ -43,9 +61,10 @@ interface ChangesState {
   applyPending: (rootPath: string, allowOverwrite?: boolean) => Promise<void>
   rejectOne: (id: string) => void
   rejectAll: () => void
-  undoLast: () => Promise<void>
+  undoLast: (rootPath: string) => Promise<void>
   clear: () => void
   dismissConflict: () => void
+  dismissSummary: () => void
 }
 
 let seq = 0
@@ -69,49 +88,57 @@ export const useChangesStore = create<ChangesState>()(
     (set, get) => ({
       responseText: '',
       parseError: null,
+      parsed: null,
       changes: [],
       activeId: null,
       applying: false,
       lastChangeSetId: null,
       conflictPath: null,
+      applySummary: null,
 
       setResponseText: text =>
         set({ responseText: text }, undefined, 'setResponseText'),
-      loadSample: sample =>
+      loadSample: () =>
         set(
-          { responseText: sample, parseError: null },
+          { responseText: SAMPLE_CHANGE_JSON, parseError: null },
           undefined,
           'loadSample'
         ),
 
       parse: (localContents, fileHashes) => {
-        const result = parseAiResponse(get().responseText)
+        const result = parseProjectChanges(get().responseText)
         if (!result.ok) {
           set(
-            { parseError: result.error ?? 'Parse failed', changes: [] },
+            {
+              parseError: result.error,
+              parsed: null,
+              changes: [],
+              activeId: null,
+            },
             undefined,
             'parse/err'
           )
           return
         }
-        const changes: ReviewChange[] = result.changes.map(
-          (c: ParsedChange) => {
+        const changes: ReviewChange[] = result.data.changes.map(
+          (c: ProjectChange) => {
             const oldContent =
-              c.type === 'add' ? null : (localContents[c.path] ?? '')
+              c.operation === 'add' ? null : (localContents[c.path] ?? '')
             return {
               id: nextId(),
-              type: c.type,
+              type: c.operation,
               path: c.path,
               status: 'pending',
               oldContent,
-              newContent: c.newContent,
+              newContent: c.content ?? null,
               expectedHash: fileHashes[c.path] ?? null,
-              diff: buildDiff(c.type, oldContent, c.newContent),
+              diff: buildDiff(c.operation, oldContent, c.content ?? null),
             }
           }
         )
         set(
           {
+            parsed: result.data.changes,
             changes,
             parseError: null,
             activeId: changes[0]?.id ?? null,
@@ -136,7 +163,12 @@ export const useChangesStore = create<ChangesState>()(
 
       applyOne: async (id, rootPath, allowOverwrite = false) => {
         const change = get().changes.find(c => c.id === id)
-        if (!change || change.status !== 'pending') return
+        if (
+          !change ||
+          change.status === 'rejected' ||
+          change.status === 'applied'
+        )
+          return
         set({ applying: true, conflictPath: null }, undefined, 'applyOne/start')
         try {
           const input: ChangeInput = {
@@ -167,14 +199,25 @@ export const useChangesStore = create<ChangesState>()(
               'applyOne/conflict'
             )
           } else {
-            set({ applying: false }, undefined, 'applyOne/err')
+            set(
+              state => ({
+                applying: false,
+                changes: state.changes.map(c =>
+                  c.id === id ? { ...c, status: 'failed' } : c
+                ),
+              }),
+              undefined,
+              'applyOne/err'
+            )
             throw e
           }
         }
       },
 
       applyPending: async (rootPath, allowOverwrite = false) => {
-        const pending = get().changes.filter(c => c.status === 'pending')
+        const pending = get().changes.filter(
+          c => c.status === 'pending' || c.status === 'accepted'
+        )
         if (pending.length === 0) return
         set({ applying: true, conflictPath: null }, undefined, 'apply/start')
         try {
@@ -186,14 +229,27 @@ export const useChangesStore = create<ChangesState>()(
           }))
           const result = await applyAiChanges(rootPath, inputs, allowOverwrite)
           const appliedPaths = new Set(result.applied)
+          const added = pending.filter(
+            c => c.type === 'add' && appliedPaths.has(c.path)
+          ).length
+          const modified = pending.filter(
+            c => c.type === 'modify' && appliedPaths.has(c.path)
+          ).length
+          const deleted = pending.filter(
+            c => c.type === 'delete' && appliedPaths.has(c.path)
+          ).length
           set(
             state => ({
               applying: false,
               lastChangeSetId: result.changeSetId,
+              applySummary: {
+                applied: result.applied.length,
+                added,
+                modified,
+                deleted,
+              },
               changes: state.changes.map(c =>
-                c.status === 'pending' && appliedPaths.has(c.path)
-                  ? { ...c, status: 'applied' }
-                  : c
+                appliedPaths.has(c.path) ? { ...c, status: 'applied' } : c
               ),
             }),
             undefined,
@@ -221,20 +277,23 @@ export const useChangesStore = create<ChangesState>()(
         set(
           state => ({
             changes: state.changes.map(c =>
-              c.status === 'pending' ? { ...c, status: 'rejected' } : c
+              c.status === 'pending' || c.status === 'accepted'
+                ? { ...c, status: 'rejected' }
+                : c
             ),
           }),
           undefined,
           'rejectAll'
         ),
 
-      undoLast: async () => {
+      undoLast: async rootPath => {
         const id = get().lastChangeSetId
         if (!id) return
-        await undoAiChanges(id)
+        await undoAiChanges(rootPath, id)
         set(
           state => ({
             lastChangeSetId: null,
+            applySummary: null,
             changes: state.changes.map(c =>
               c.status === 'applied' ? { ...c, status: 'pending' } : c
             ),
@@ -250,8 +309,10 @@ export const useChangesStore = create<ChangesState>()(
             changes: [],
             activeId: null,
             parseError: null,
+            parsed: null,
             lastChangeSetId: null,
             conflictPath: null,
+            applySummary: null,
           },
           undefined,
           'clear'
@@ -259,11 +320,17 @@ export const useChangesStore = create<ChangesState>()(
 
       dismissConflict: () =>
         set({ conflictPath: null }, undefined, 'dismissConflict'),
+      dismissSummary: () =>
+        set({ applySummary: null }, undefined, 'dismissSummary'),
     }),
     { name: 'changes-store' }
   )
 )
 
 export function pendingCount(changes: ReviewChange[]): number {
-  return changes.filter(c => c.status === 'pending').length
+  return changes.filter(c => c.status === 'pending' || c.status === 'accepted')
+    .length
 }
+
+// keep changesToApplyInputs imported for type re-export convenience
+void changesToApplyInputs

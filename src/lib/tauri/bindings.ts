@@ -199,11 +199,28 @@ async readProjectFiles(rootPath: string, paths: string[]) : Promise<Result<FileC
 }
 },
 /**
- * Build full context text + stats for a mode: structure | selected | all
+ * Build structured project context.
+ * 
+ * - `structure_paths`: file paths to include in the pruned structure tree
+ * - `content_paths`: file paths whose contents are read into `files[]`
+ * 
+ * Structure and content are independent: e.g. full structure of `src/auth/`
+ * plus content of a single Login file, without any `src/payment/` structure.
  */
-async buildProjectContext(rootPath: string, mode: string, selectedPaths: string[]) : Promise<Result<ContextBuildResult, string>> {
+async buildProjectContext(rootPath: string, structurePaths: string[], contentPaths: string[]) : Promise<Result<ContextBuildResult, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("build_project_context", { rootPath, mode, selectedPaths }) };
+    return { status: "ok", data: await TAURI_INVOKE("build_project_context", { rootPath, structurePaths, contentPaths }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Collect every file path in a scanned project (for "select all structure").
+ */
+async listAllFilePaths(rootPath: string) : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_all_file_paths", { rootPath }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -221,18 +238,18 @@ async applyAiChanges(rootPath: string, changes: ChangeInput[], allowOverwriteCon
 }
 },
 /**
- * Undo a previous apply by change set id.
+ * Undo a previous apply by snapshot name (under project `.history/`).
  */
-async undoAiChanges(changeSetId: string) : Promise<Result<string[], string>> {
+async undoAiChanges(rootPath: string, changeSetId: string) : Promise<Result<string[], string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("undo_ai_changes", { changeSetId }) };
+    return { status: "ok", data: await TAURI_INVOKE("undo_ai_changes", { rootPath, changeSetId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * List undo snapshots available for a project.
+ * List undo snapshots available for a project (`.history/` folders).
  */
 async listUndoChangeSets(rootPath: string) : Promise<Result<string[], string>> {
     try {
@@ -287,7 +304,19 @@ newContent: string | null;
  * Content fingerprint when context was created (modify only)
  */
 expectedHash: string | null }
-export type ContextBuildResult = { text: string; files: FileContent[]; fileCount: number; totalChars: number; estimatedTokens: number; projectTotalBytes: number; projectTotalTokens: number; reductionPercent: number }
+/**
+ * Structured context payload. Frontend serializer turns this into
+ * protocol ProjectContext JSON — Rust does not emit Markdown.
+ */
+export type ContextBuildResult = { projectName: string; 
+/**
+ * Pruned tree containing only structure-selected files.
+ */
+structure: ProjectNode; 
+/**
+ * File contents for content-selected paths (independent of structure).
+ */
+files: FileContent[]; mode: string; structureFileCount: number; contentFileCount: number; totalChars: number; estimatedTokens: number; projectTotalBytes: number; projectTotalTokens: number; reductionPercent: number }
 export type FileContent = { path: string; content: string; hash: string; size: number }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type ProjectNode = { name: string; 

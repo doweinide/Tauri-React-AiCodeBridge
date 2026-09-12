@@ -1,4 +1,4 @@
-//! Change apply / undo commands.
+//! Change apply / undo commands. Snapshots live in `<project>/.history/`.
 
 use std::path::PathBuf;
 
@@ -19,22 +19,19 @@ pub async fn apply_ai_changes(
     apply_changes(&app, &root, &changes, allow_overwrite_conflict)
 }
 
-/// Undo a previous apply by change set id.
+/// Undo a previous apply by snapshot name (under project `.history/`).
 #[tauri::command]
 #[specta::specta]
 pub async fn undo_ai_changes(
-    app: tauri::AppHandle,
+    root_path: String,
     change_set_id: String,
 ) -> Result<Vec<String>, String> {
-    undo_apply(&app, &change_set_id)
+    undo_apply(&root_path, &change_set_id)
 }
 
-/// List undo snapshots available for a project.
+/// List undo snapshots available for a project (`.history/` folders).
 #[tauri::command]
 #[specta::specta]
-pub async fn list_undo_change_sets(
-    app: tauri::AppHandle,
-    root_path: String,
-) -> Result<Vec<String>, String> {
-    list_undo_snapshots(&app, &root_path)
+pub async fn list_undo_change_sets(root_path: String) -> Result<Vec<String>, String> {
+    list_undo_snapshots(&root_path)
 }

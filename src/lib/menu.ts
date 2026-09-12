@@ -68,6 +68,38 @@ export async function buildAppMenu(): Promise<Menu> {
       ],
     })
 
+    // Edit menu — required on macOS so Cmd+C/V/X/A work in webviews
+    const editSubmenu = await Submenu.new({
+      text: t('menu.edit', { defaultValue: 'Edit' }),
+      items: [
+        await PredefinedMenuItem.new({
+          item: 'Undo',
+          text: t('menu.undo', { defaultValue: 'Undo' }),
+        }),
+        await PredefinedMenuItem.new({
+          item: 'Redo',
+          text: t('menu.redo', { defaultValue: 'Redo' }),
+        }),
+        await PredefinedMenuItem.new({ item: 'Separator' }),
+        await PredefinedMenuItem.new({
+          item: 'Cut',
+          text: t('menu.cut', { defaultValue: 'Cut' }),
+        }),
+        await PredefinedMenuItem.new({
+          item: 'Copy',
+          text: t('menu.copy', { defaultValue: 'Copy' }),
+        }),
+        await PredefinedMenuItem.new({
+          item: 'Paste',
+          text: t('menu.paste', { defaultValue: 'Paste' }),
+        }),
+        await PredefinedMenuItem.new({
+          item: 'SelectAll',
+          text: t('menu.selectAll', { defaultValue: 'Select All' }),
+        }),
+      ],
+    })
+
     // Build the View submenu
     const viewSubmenu = await Submenu.new({
       text: t('menu.view'),
@@ -89,7 +121,7 @@ export async function buildAppMenu(): Promise<Menu> {
 
     // Build the complete menu
     const menu = await Menu.new({
-      items: [appSubmenu, viewSubmenu],
+      items: [appSubmenu, editSubmenu, viewSubmenu],
     })
 
     // Set as the application menu

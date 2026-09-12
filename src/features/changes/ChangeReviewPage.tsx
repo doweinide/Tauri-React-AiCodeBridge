@@ -7,6 +7,7 @@ import {
   ResizablePanelGroup,
 } from '@/components/ui/resizable'
 import { cn } from '@/lib/utils'
+import { CodeViewer } from '@/components/code'
 import { useProjectStore } from '@/features/project/project-store'
 import {
   useChangesStore,
@@ -26,11 +27,20 @@ const SYM_CLS: Record<ReviewChange['type'], string> = {
   delete: 'bg-red-500/12 text-red-500',
 }
 
+const STATUS_CLS: Record<ReviewChange['status'], string> = {
+  pending: 'text-muted-foreground',
+  accepted: 'text-primary',
+  rejected: 'text-red-500',
+  applied: 'text-emerald-500',
+  failed: 'text-red-500',
+}
+
 export function ChangeReviewPage() {
   const project = useProjectStore(s => s.project)
   const changes = useChangesStore(s => s.changes)
   const activeId = useChangesStore(s => s.activeId)
   const selectChange = useChangesStore(s => s.selectChange)
+  const setChangeStatus = useChangesStore(s => s.setChangeStatus)
   const applyOne = useChangesStore(s => s.applyOne)
   const applyPending = useChangesStore(s => s.applyPending)
   const rejectOne = useChangesStore(s => s.rejectOne)
@@ -39,6 +49,8 @@ export function ChangeReviewPage() {
   const lastChangeSetId = useChangesStore(s => s.lastChangeSetId)
   const conflictPath = useChangesStore(s => s.conflictPath)
   const dismissConflict = useChangesStore(s => s.dismissConflict)
+  const applySummary = useChangesStore(s => s.applySummary)
+  const dismissSummary = useChangesStore(s => s.dismissSummary)
 
   const active = changes.find(c => c.id === activeId) ?? changes[0]
   const added = changes.filter(c => c.type === 'add').length
@@ -58,7 +70,9 @@ export function ChangeReviewPage() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-muted-foreground">
         <p className="text-sm">暂无变更</p>
-        <p className="text-xs">请先在 AI Exchange 中粘贴并解析 AI Response</p>
+        <p className="text-xs">
+          请先在 AI Exchange 中粘贴并解析 AI Response JSON
+        </p>
       </div>
     )
   }
@@ -112,14 +126,7 @@ export function ChangeReviewPage() {
                     {c.path}
                   </span>
                   <span
-                    className={cn(
-                      'shrink-0 text-[10px]',
-                      c.status === 'applied'
-                        ? 'text-emerald-500'
-                        : c.status === 'rejected'
-                          ? 'text-red-500'
-                          : 'text-muted-foreground'
-                    )}
+                    className={cn('shrink-0 text-[10px]', STATUS_CLS[c.status])}
                   >
                     {c.status === 'pending' ? '' : c.status}
                   </span>
@@ -135,13 +142,12 @@ export function ChangeReviewPage() {
               onClick={async () => {
                 try {
                   await applyPending(project.rootPath)
-                  toast.success('Apply All 完成')
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : String(e))
                 }
               }}
             >
-              Apply All ({pending})
+              Apply ({pending})
             </Button>
             <Button
               variant="outline"
@@ -158,15 +164,15 @@ export function ChangeReviewPage() {
                 className="h-8"
                 onClick={async () => {
                   try {
-                    await undoLast()
-                    toast.success('已撤销最近一次 Apply')
+                    await undoLast(project.rootPath)
+                    toast.success('已从 .history 快照撤销')
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : String(e))
                   }
                 }}
               >
                 <Undo2 className="mr-1 h-3.5 w-3.5" />
-                Undo Last Apply
+                Undo
               </Button>
             )}
           </div>
@@ -179,19 +185,16 @@ export function ChangeReviewPage() {
             <span className="min-w-0 flex-1 truncate font-mono text-[12px]">
               {active?.path ?? '—'}
             </span>
-            <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-              {active ? (
-                <>
-                  <span className="text-emerald-500">
-                    +{active.diff.filter(l => l.type === 'add').length}
-                  </span>{' '}
-                  <span className="text-red-500">
-                    −{active.diff.filter(l => l.type === 'del').length}
-                  </span>
-                </>
-              ) : null}
-            </span>
             <div className="ml-auto flex shrink-0 gap-[7px]">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2.5 text-[11.5px]"
+                disabled={!active || active.status === 'applied'}
+                onClick={() => active && setChangeStatus(active.id, 'accepted')}
+              >
+                Accept
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -204,12 +207,15 @@ export function ChangeReviewPage() {
               <Button
                 size="sm"
                 className="h-7 bg-emerald-600 px-2.5 text-[11.5px] font-semibold text-white hover:bg-emerald-500"
-                disabled={!active || active.status !== 'pending'}
+                disabled={
+                  !active ||
+                  active.status === 'applied' ||
+                  active.status === 'rejected'
+                }
                 onClick={async () => {
                   if (!active) return
                   try {
                     await applyOne(active.id, project.rootPath)
-                    toast.success(`已应用 ${active.path}`)
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : String(e))
                   }
@@ -220,10 +226,43 @@ export function ChangeReviewPage() {
             </div>
           </div>
 
+          {applySummary && (
+            <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-[12px]">
+              <span className="flex-1 text-emerald-600 dark:text-emerald-400">
+                ✓ Changes applied — {applySummary.applied} files ( +
+                {applySummary.added} · ~{applySummary.modified} · −
+                {applySummary.deleted})
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-[11px]"
+                onClick={async () => {
+                  try {
+                    await undoLast(project.rootPath)
+                    toast.success('已撤销')
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : String(e))
+                  }
+                }}
+              >
+                Undo
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-[11px]"
+                onClick={dismissSummary}
+              >
+                Done
+              </Button>
+            </div>
+          )}
+
           {conflictPath && (
             <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-[12px]">
               <span className="min-w-0 flex-1 text-amber-600 dark:text-amber-400">
-                Local file has changed since Context was created:{' '}
+                ⚠ File changed externally:{' '}
                 <code className="break-all">{conflictPath}</code>
               </span>
               <Button
@@ -236,7 +275,6 @@ export function ChangeReviewPage() {
                     if (!active) return
                     try {
                       await applyOne(active.id, project.rootPath, true)
-                      toast.success('已覆盖应用')
                     } catch (e) {
                       toast.error(e instanceof Error ? e.message : String(e))
                     }
@@ -256,37 +294,40 @@ export function ChangeReviewPage() {
             </div>
           )}
 
-          <div className="min-h-0 min-w-0 flex-1 overflow-auto bg-background font-mono text-[11.5px] leading-[1.7] select-text">
-            {active?.diff.map((line, i) => (
-              <div
-                key={i}
-                className={cn(
-                  'flex min-h-[19px] whitespace-pre px-2 sm:px-3.5',
-                  line.type === 'add' && 'bg-emerald-500/10',
-                  line.type === 'del' && 'bg-red-500/10',
-                  line.type === 'meta' && 'bg-muted'
-                )}
-              >
-                <span className="w-[28px] shrink-0 pr-2 text-right text-muted-foreground opacity-60 select-none sm:w-[34px] sm:pr-3">
-                  {line.oldNo ?? line.newNo ?? ''}
-                </span>
-                <span
-                  className={cn(
-                    'min-w-0 flex-1 whitespace-pre',
-                    line.type === 'add' && 'text-emerald-400',
-                    line.type === 'del' && 'text-red-400',
-                    line.type === 'meta' && 'text-primary/80',
-                    line.type === 'ctx' && 'text-muted-foreground'
-                  )}
-                >
-                  {(line.type === 'add'
-                    ? '+'
-                    : line.type === 'del'
-                      ? '-'
-                      : ' ') + line.text}
-                </span>
+          {/* Side-by-side Current | AI Changes */}
+          <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-2">
+            <div className="flex min-h-0 min-w-0 flex-col border-b md:border-r md:border-b-0">
+              <div className="shrink-0 border-b bg-muted/30 px-3 py-1.5 text-[11px] font-medium text-muted-foreground">
+                Current
               </div>
-            ))}
+              <div className="min-h-0 flex-1 overflow-hidden p-2">
+                <CodeViewer
+                  value={
+                    active?.type === 'add'
+                      ? '// (new file)'
+                      : (active?.oldContent ?? '')
+                  }
+                  className="h-full"
+                  minHeight="100%"
+                />
+              </div>
+            </div>
+            <div className="flex min-h-0 min-w-0 flex-col">
+              <div className="shrink-0 border-b bg-muted/30 px-3 py-1.5 text-[11px] font-medium text-muted-foreground">
+                AI Changes
+              </div>
+              <div className="min-h-0 flex-1 overflow-hidden p-2">
+                <CodeViewer
+                  value={
+                    active?.type === 'delete'
+                      ? '// (file will be deleted)'
+                      : (active?.newContent ?? '')
+                  }
+                  className="h-full"
+                  minHeight="100%"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </ResizablePanel>

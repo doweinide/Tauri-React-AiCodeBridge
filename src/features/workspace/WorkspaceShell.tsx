@@ -54,7 +54,9 @@ export function WorkspaceShell() {
   const setActivePage = useUIStore(s => s.setActivePage)
   const project = useProjectStore(s => s.project)
   const changes = useChangesStore(s => s.changes)
-  const selectedCount = useContextStore(s => s.selected.size)
+  const selectedCount = useContextStore(
+    s => s.structureSelected.size + s.contentSelected.size
+  )
   const pending = pendingCount(changes)
   const isNarrow = useIsNarrow()
 

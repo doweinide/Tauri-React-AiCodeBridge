@@ -1,18 +1,21 @@
-import { Copy, Check, Download } from 'lucide-react'
+import { Copy, Check, Download, ClipboardPaste } from 'lucide-react'
 import { toast } from 'sonner'
+import { readText } from '@tauri-apps/plugin-clipboard-manager'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { AI_PROMPT, SAMPLE_AI_RESPONSE } from '@/lib/ai-response'
+import { AI_INSTRUCTION } from '@/lib/protocol'
 import { useProjectStore } from '@/features/project/project-store'
 import { useContextStore } from '@/features/context/context-store'
 import { useChangesStore } from '@/features/changes/changes-store'
-import { readProjectFiles } from '@/services/project'
+import { readProjectFiles, contextCopyText } from '@/services/project'
 import { useUIStore } from '@/store/ui-store'
 
 export function AiExchangePage() {
   const project = useProjectStore(s => s.project)
-  const selected = useContextStore(s => s.selected)
+  const contentSelected = useContextStore(s => s.contentSelected)
   const fileHashes = useContextStore(s => s.fileHashes)
+  const protocolContext = useContextStore(s => s.protocolContext)
+  const refreshPreview = useContextStore(s => s.refreshPreview)
   const responseText = useChangesStore(s => s.responseText)
   const setResponseText = useChangesStore(s => s.setResponseText)
   const parse = useChangesStore(s => s.parse)
@@ -22,25 +25,20 @@ export function AiExchangePage() {
 
   const copyContext = async () => {
     if (!project) return
-    const { buildProjectContext } = await import('@/services/project')
     try {
-      const result = await buildProjectContext(project.rootPath, 'selected', [
-        ...selected,
-      ])
-      await navigator.clipboard.writeText(result.text)
-      useContextStore.setState({
-        preview: result,
-        fileHashes: Object.fromEntries(result.files.map(f => [f.path, f.hash])),
-      })
-      toast.success('已复制 Structure + Selected Contents')
+      await refreshPreview(project.rootPath)
+      const ctx = useContextStore.getState().protocolContext
+      if (!ctx) throw new Error('Context not ready')
+      await navigator.clipboard.writeText(contextCopyText(ctx))
+      toast.success('已复制 AI Instruction + Project Context JSON')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
     }
   }
 
   const copyPrompt = async () => {
-    await navigator.clipboard.writeText(AI_PROMPT)
-    toast.success('已复制 AI 指令')
+    await navigator.clipboard.writeText(AI_INSTRUCTION)
+    toast.success('已复制 AI Instruction')
   }
 
   const handleParse = async () => {
@@ -48,9 +46,8 @@ export function AiExchangePage() {
       toast.error('请先打开项目')
       return
     }
-    // Load current local contents for MODIFY paths
     const localContents: Record<string, string> = {}
-    const allSelected = [...selected]
+    const allSelected = [...contentSelected]
     if (allSelected.length > 0) {
       try {
         const files = await readProjectFiles(project.rootPath, allSelected)
@@ -59,26 +56,31 @@ export function AiExchangePage() {
         // continue with empty contents
       }
     }
-    // Also try reading any path mentioned if we can guess from selected tree
-    // Paths in response that aren't selected will have empty oldContent
+    // Also try reading currently selected files from last build for MODIFY baselines
+    if (protocolContext) {
+      for (const f of protocolContext.files) {
+        localContents[f.path] = f.content
+      }
+    }
     parse(localContents, fileHashes)
-    if (useChangesStore.getState().changes.length > 0) {
-      toast.success(
-        `解析成功 · 识别到 ${useChangesStore.getState().changes.length} 个变更`
-      )
+    const st = useChangesStore.getState()
+    if (st.changes.length > 0) {
+      toast.success(`Schema 校验通过 · 识别到 ${st.changes.length} 个变更`)
       setTimeout(() => setActivePage('review'), 200)
     }
   }
 
-  const pending = changes.filter(c => c.status === 'pending').length
+  const pending = changes.filter(
+    c => c.status === 'pending' || c.status === 'accepted'
+  ).length
 
   return (
     <div className="h-full overflow-y-auto px-4 pt-5 pb-10 sm:px-[30px] sm:pt-[26px]">
       <div className="mx-auto flex w-full max-w-[900px] flex-col gap-4">
         <StepCard
           step={1}
-          title="复制 Context"
-          desc="把选中的项目上下文复制到剪贴板"
+          title="复制 Context JSON"
+          desc="AI Instruction + 标准 ProjectContext JSON"
           action={
             <Button
               size="sm"
@@ -94,8 +96,8 @@ export function AiExchangePage() {
 
         <StepCard
           step={2}
-          title="复制 AI 指令"
-          desc="告诉 AI 按固定格式返回结构化修改结果"
+          title="复制 AI Instruction"
+          desc="要求 AI 只返回 project_changes JSON"
           action={
             <Button
               variant="outline"
@@ -107,23 +109,23 @@ export function AiExchangePage() {
             </Button>
           }
         >
-          <pre className="max-h-[220px] overflow-auto whitespace-pre rounded-lg border bg-background px-3.5 py-3 font-mono text-[11.5px] leading-[1.65] text-muted-foreground select-text">
-            {AI_PROMPT}
+          <pre className="max-h-[220px] overflow-auto rounded-lg border bg-background px-3.5 py-3 font-mono text-[11.5px] leading-[1.65] whitespace-pre text-muted-foreground select-text">
+            {AI_INSTRUCTION}
           </pre>
         </StepCard>
 
         <StepCard
           step={3}
-          title="粘贴 AI Response"
-          desc="将网页 AI 返回的内容粘贴到这里"
+          title="粘贴 AI Response JSON"
+          desc="粘贴后做 JSON.parse + Schema 校验"
           action={
             <Button
               variant="outline"
               size="sm"
               className="h-8"
               onClick={() => {
-                useChangesStore.getState().loadSample(SAMPLE_AI_RESPONSE)
-                toast.success('已载入示例响应')
+                useChangesStore.getState().loadSample()
+                toast.success('已载入示例 Change JSON')
               }}
             >
               <Download className="mr-1.5 h-3.5 w-3.5" />
@@ -134,12 +136,41 @@ export function AiExchangePage() {
           <Textarea
             value={responseText}
             onChange={e => setResponseText(e.target.value)}
+            spellCheck={false}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            onPaste={e => {
+              // Allow native paste; also stop parent handlers from swallowing it
+              e.stopPropagation()
+            }}
             placeholder={
-              '# AI_CHANGE\n\n## MODIFY\nFILE: src/auth/login.ts\n```ts\n...\n```'
+              '{\n  "version": "1.0",\n  "type": "project_changes",\n  "changes": [\n    { "operation": "modify", "path": "src/auth/login.ts", "content": "..." }\n  ]\n}'
             }
             className="min-h-[190px] resize-y font-mono text-[11.5px] leading-[1.65] select-text"
           />
-          <div className="mt-3 flex items-center gap-2.5">
+          <div className="mt-3 flex flex-wrap items-center gap-2.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8"
+              onClick={async () => {
+                try {
+                  const text = await readText()
+                  if (!text) {
+                    toast.error('剪贴板为空')
+                    return
+                  }
+                  setResponseText(text)
+                  toast.success('已从系统剪贴板粘贴')
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : String(e))
+                }
+              }}
+            >
+              <ClipboardPaste className="mr-1.5 h-3.5 w-3.5" />
+              从剪贴板粘贴
+            </Button>
             <Button
               size="sm"
               className="h-8"
@@ -157,10 +188,15 @@ export function AiExchangePage() {
                     : 'text-muted-foreground'
               }`}
             >
-              {parseError ??
-                (changes.length
-                  ? `解析成功 · ${pending} 个待应用变更`
-                  : '支持 ADD / MODIFY / DELETE 三种指令')}
+              {parseError
+                ? `Invalid AI response${
+                    parseError.path ? ` · ${parseError.path}` : ''
+                  }${parseError.line ? ` · Line ${parseError.line}` : ''}: ${
+                    parseError.reason
+                  }`
+                : changes.length
+                  ? `${changes.length} changes detected · ${pending} 待处理`
+                  : '仅接受 version=1.0 / type=project_changes 的 JSON'}
             </span>
           </div>
         </StepCard>
@@ -168,11 +204,6 @@ export function AiExchangePage() {
         {!project && (
           <p className="text-xs text-muted-foreground">
             请先打开一个本地项目，再生成 Context。
-          </p>
-        )}
-        {project && selected.size === 0 && (
-          <p className="text-xs text-muted-foreground">
-            当前未选中文件。可在 Context Builder 中选择，或直接复制 Structure。
           </p>
         )}
       </div>
@@ -199,13 +230,13 @@ function StepCard({
         <div className="flex h-[21px] w-[21px] shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">
           {step}
         </div>
-        <div>
-          <div className="text-[13px] font-semibold">{title}</div>
-          <div className="mt-px text-[11.5px] text-muted-foreground">
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-semibold">{title}</div>
+          <div className="mt-px truncate text-[11.5px] text-muted-foreground">
             {desc}
           </div>
         </div>
-        {action ? <div className="ml-auto">{action}</div> : null}
+        {action ? <div className="ml-auto shrink-0">{action}</div> : null}
       </div>
       {children ? <div className="border-t px-4 py-4">{children}</div> : null}
     </div>

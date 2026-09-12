@@ -15,17 +15,81 @@ pub struct FileContent {
     pub size: f64,
 }
 
+/// Structured context payload. Frontend serializer turns this into
+/// protocol ProjectContext JSON — Rust does not emit Markdown.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextBuildResult {
-    pub text: String,
+    pub project_name: String,
+    /// Pruned tree containing only structure-selected files.
+    pub structure: ProjectNode,
+    /// File contents for content-selected paths (independent of structure).
     pub files: Vec<FileContent>,
-    pub file_count: u32,
+    pub mode: String,
+    pub structure_file_count: u32,
+    pub content_file_count: u32,
     pub total_chars: u32,
     pub estimated_tokens: u32,
     pub project_total_bytes: f64,
     pub project_total_tokens: u32,
     pub reduction_percent: f64,
+}
+
+/// Prune the project tree to only include files whose paths are in `keep`.
+/// Directories are kept only if they still have children after pruning.
+pub fn prune_tree_to_files(
+    node: &ProjectNode,
+    keep: &std::collections::HashSet<String>,
+) -> Option<ProjectNode> {
+    if node.node_type == "file" {
+        return if keep.contains(&node.path) {
+            Some(node.clone())
+        } else {
+            None
+        };
+    }
+
+    let mut children = Vec::new();
+    for child in node.children.as_deref().unwrap_or(&[]) {
+        if let Some(pruned) = prune_tree_to_files(child, keep) {
+            children.push(pruned);
+        }
+    }
+
+    if children.is_empty() {
+        // Root always kept so protocol has a structure root
+        if node.path.is_empty() {
+            return Some(ProjectNode {
+                name: node.name.clone(),
+                path: node.path.clone(),
+                node_type: node.node_type.clone(),
+                size: node.size,
+                children: Some(Vec::new()),
+            });
+        }
+        return None;
+    }
+
+    Some(ProjectNode {
+        name: node.name.clone(),
+        path: node.path.clone(),
+        node_type: node.node_type.clone(),
+        size: node.size,
+        children: Some(children),
+    })
+}
+
+/// Count files under a tree node.
+pub fn count_files(node: &ProjectNode) -> u32 {
+    if node.node_type == "file" {
+        return 1;
+    }
+    node.children
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .map(count_files)
+        .sum()
 }
 
 /// Ensure a relative path stays inside the project root after join.
@@ -58,7 +122,6 @@ pub fn resolve_in_project(root: &Path, rel: &str) -> Result<PathBuf, String> {
 }
 
 /// Stable FNV-1a 64 content fingerprint for external-change detection.
-/// Not cryptographic — only used to detect local edits between context create and apply.
 pub fn hash_content(content: &str) -> String {
     let mut hash: u64 = 0xcbf29ce484222325;
     for b in content.as_bytes() {
@@ -66,35 +129,6 @@ pub fn hash_content(content: &str) -> String {
         hash = hash.wrapping_mul(0x100000001b3);
     }
     format!("fnv1a-{hash:016x}-{}", content.len())
-}
-
-/// Render directory tree as structure text (like `tree` output).
-pub fn structure_text(root_name: &str, tree: &ProjectNode) -> String {
-    let mut out = format!("{root_name}/\n");
-    if let Some(children) = &tree.children {
-        render_children(children, "", &mut out);
-    }
-    out
-}
-
-fn render_children(children: &[ProjectNode], prefix: &str, out: &mut String) {
-    let n = children.len();
-    for (i, child) in children.iter().enumerate() {
-        let last = i == n - 1;
-        let branch = if last { "└── " } else { "├── " };
-        let name = if child.node_type == "dir" {
-            format!("{}/", child.name)
-        } else {
-            child.name.clone()
-        };
-        out.push_str(&format!("{prefix}{branch}{name}\n"));
-        if child.node_type == "dir" {
-            if let Some(kids) = &child.children {
-                let next_prefix = format!("{prefix}{}", if last { "    " } else { "│   " });
-                render_children(kids, &next_prefix, out);
-            }
-        }
-    }
 }
 
 /// Collect all file paths under a tree node.
@@ -132,27 +166,6 @@ pub fn read_files(root: &Path, paths: &[String]) -> Result<Vec<FileContent>, Str
     Ok(out)
 }
 
-/// Build context text from structure + optional file contents.
-pub fn build_context_text(
-    project_name: &str,
-    tree: &ProjectNode,
-    files: &[FileContent],
-    include_contents: bool,
-) -> String {
-    let structure = structure_text(project_name, tree);
-    if !include_contents {
-        return format!("## 项目结构\n\n{structure}");
-    }
-    let mut out = format!("## 项目结构\n\n{structure}\n## 文件内容\n");
-    for f in files {
-        out.push_str(&format!(
-            "\n### FILE: {}\n```\n{}\n```\n",
-            f.path, f.content
-        ));
-    }
-    out
-}
-
 pub fn estimate_tokens(chars: usize) -> u32 {
     chars.div_ceil(4) as u32
 }
@@ -180,35 +193,68 @@ mod tests {
     }
 
     #[test]
-    fn structure_renders_tree() {
-        let tree = ProjectNode {
-            name: "app".into(),
-            path: "".into(),
-            node_type: "dir".into(),
-            size: None,
-            children: Some(vec![ProjectNode {
-                name: "src".into(),
-                path: "src".into(),
-                node_type: "dir".into(),
-                size: None,
-                children: Some(vec![ProjectNode {
-                    name: "a.ts".into(),
-                    path: "src/a.ts".into(),
-                    node_type: "file".into(),
-                    size: Some(10.0),
-                    children: None,
-                }]),
-            }]),
-        };
-        let text = structure_text("app", &tree);
-        assert!(text.contains("app/"));
-        assert!(text.contains("src/"));
-        assert!(text.contains("a.ts"));
-    }
-
-    #[test]
     fn hash_is_stable() {
         assert_eq!(hash_content("hello"), hash_content("hello"));
         assert_ne!(hash_content("hello"), hash_content("world"));
+    }
+
+    #[test]
+    fn prunes_structure_to_selected_files_only() {
+        use std::collections::HashSet;
+
+        let file = |name: &str, path: &str| ProjectNode {
+            name: name.into(),
+            path: path.into(),
+            node_type: "file".into(),
+            size: Some(1.0),
+            children: None,
+        };
+        let dir = |name: &str, path: &str, children: Vec<ProjectNode>| ProjectNode {
+            name: name.into(),
+            path: path.into(),
+            node_type: "dir".into(),
+            size: None,
+            children: Some(children),
+        };
+
+        let tree = dir(
+            "app",
+            "",
+            vec![
+                dir(
+                    "auth",
+                    "src/auth",
+                    vec![
+                        file("login.ts", "src/auth/login.ts"),
+                        file("token.ts", "src/auth/token.ts"),
+                    ],
+                ),
+                dir(
+                    "payment",
+                    "src/payment",
+                    vec![file("pay.ts", "src/payment/pay.ts")],
+                ),
+            ],
+        );
+
+        let mut keep = HashSet::new();
+        keep.insert("src/auth/login.ts".to_string());
+        let pruned = prune_tree_to_files(&tree, &keep).unwrap();
+
+        fn flatten(node: &ProjectNode) -> Vec<String> {
+            let mut out = Vec::new();
+            if node.node_type == "file" {
+                out.push(node.path.clone());
+            }
+            for c in node.children.as_deref().unwrap_or(&[]) {
+                out.extend(flatten(c));
+            }
+            out
+        }
+
+        let flat = flatten(&pruned);
+        assert!(flat.contains(&"src/auth/login.ts".to_string()));
+        assert!(!flat.iter().any(|p| p.contains("payment")));
+        assert!(!flat.contains(&"src/auth/token.ts".to_string()));
     }
 }

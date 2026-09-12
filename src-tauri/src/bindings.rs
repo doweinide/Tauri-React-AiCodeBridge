@@ -24,6 +24,7 @@ pub fn generate_bindings() -> Builder<tauri::Wry> {
         project::validate_project_path,
         context::read_project_files,
         context::build_project_context,
+        context::list_all_file_paths,
         changes::apply_ai_changes,
         changes::undo_ai_changes,
         changes::list_undo_change_sets,

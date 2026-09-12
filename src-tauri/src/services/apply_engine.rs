@@ -1,4 +1,5 @@
-//! Apply engine: write/add/delete files with path safety, hash conflict check, undo snapshots.
+//! Apply engine: write/add/delete files with path safety, hash conflict check,
+//! and project-local `.history/` snapshots for undo.
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -27,20 +28,24 @@ pub struct ApplyResult {
     pub skipped: Vec<String>,
 }
 
-fn undo_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    use tauri::Manager;
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("app data dir: {e}"))?
-        .join("undo");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("create undo dir: {e}"))?;
-    Ok(dir)
+/// Snapshot lives in `<project>/.history/<timestamp>_<id>/`
+fn history_root(project_root: &Path) -> PathBuf {
+    project_root.join(".history")
 }
 
-/// Apply a batch of changes. Creates an undo snapshot first.
+fn snapshot_dir_name(change_set_id: &str) -> String {
+    // Compact UTC-ish timestamp for sortability
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    format!("{secs}_{change_set_id}")
+}
+
+/// Apply a batch of changes. Creates a `.history/` snapshot first.
 pub fn apply_changes(
-    app: &tauri::AppHandle,
+    _app: &tauri::AppHandle,
     root: &Path,
     changes: &[ChangeInput],
     allow_overwrite_conflict: bool,
@@ -55,6 +60,10 @@ pub fn apply_changes(
 
     // Pre-validate all paths and detect conflicts
     for change in changes {
+        // Never allow applying into .history itself
+        if change.path.starts_with(".history/") || change.path == ".history" {
+            return Err("Cannot modify .history/ snapshot directory".into());
+        }
         let abs = resolve_in_project(&root, &change.path)?;
         match change.change_type.as_str() {
             "add" => {
@@ -94,11 +103,13 @@ pub fn apply_changes(
     }
 
     let change_set_id = new_id();
-    let snapshot_root = undo_dir(app)?.join(&change_set_id);
+    let snap_name = snapshot_dir_name(&change_set_id);
+    let snapshot_root = history_root(&root).join(&snap_name);
     std::fs::create_dir_all(&snapshot_root).map_err(|e| format!("create snapshot: {e}"))?;
 
     let mut applied = Vec::new();
     let mut skipped = Vec::new();
+    let mut manifest_files: Vec<serde_json::Value> = Vec::new();
 
     for change in changes {
         let abs = resolve_in_project(&root, &change.path)?;
@@ -115,7 +126,6 @@ pub fn apply_changes(
                         .map_err(|e| format!("create parent for {}: {e}", change.path))?;
                 }
                 std::fs::write(&abs, content).map_err(|e| format!("write {}: {e}", change.path))?;
-                // Marker filename: "<file>.__ai_ctx_added__"
                 let file_name = abs
                     .file_name()
                     .map(|s| s.to_string_lossy().to_string())
@@ -123,6 +133,10 @@ pub fn apply_changes(
                 let marker_name = format!("{file_name}.__ai_ctx_added__");
                 let marker_path = snapshot_path.with_file_name(marker_name);
                 std::fs::write(&marker_path, b"").ok();
+                manifest_files.push(serde_json::json!({
+                    "path": change.path,
+                    "operation": "add"
+                }));
                 applied.push(change.path.clone());
             }
             "modify" => {
@@ -130,54 +144,55 @@ pub fn apply_changes(
                 std::fs::copy(&abs, &snapshot_path)
                     .map_err(|e| format!("snapshot {}: {e}", change.path))?;
                 std::fs::write(&abs, content).map_err(|e| format!("write {}: {e}", change.path))?;
+                manifest_files.push(serde_json::json!({
+                    "path": change.path,
+                    "operation": "modify"
+                }));
                 applied.push(change.path.clone());
             }
             "delete" => {
                 std::fs::copy(&abs, &snapshot_path)
                     .map_err(|e| format!("snapshot {}: {e}", change.path))?;
                 std::fs::remove_file(&abs).map_err(|e| format!("delete {}: {e}", change.path))?;
+                manifest_files.push(serde_json::json!({
+                    "path": change.path,
+                    "operation": "delete"
+                }));
                 applied.push(change.path.clone());
             }
             _ => skipped.push(change.path.clone()),
         }
     }
 
-    let meta = serde_json::json!({
+    let manifest = serde_json::json!({
+        "changeSetId": change_set_id,
         "projectId": root.to_string_lossy(),
         "createdAt": new_id(),
         "applied": applied,
+        "files": manifest_files,
     });
     std::fs::write(
-        snapshot_root.join("meta.json"),
-        serde_json::to_string_pretty(&meta).unwrap_or_default(),
+        snapshot_root.join("manifest.json"),
+        serde_json::to_string_pretty(&manifest).unwrap_or_default(),
     )
-    .ok();
+    .map_err(|e| format!("write manifest: {e}"))?;
 
     Ok(ApplyResult {
-        change_set_id,
+        change_set_id: snap_name,
         applied,
         skipped,
     })
 }
 
-/// Undo a previous apply by change set id.
-pub fn undo_apply(app: &tauri::AppHandle, change_set_id: &str) -> Result<Vec<String>, String> {
-    let snapshot_root = undo_dir(app)?.join(change_set_id);
+/// Undo a previous apply by snapshot directory name (change set id).
+pub fn undo_apply(project_root: &str, snapshot_name: &str) -> Result<Vec<String>, String> {
+    let root = PathBuf::from(project_root)
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve project root: {e}"))?;
+    let snapshot_root = history_root(&root).join(snapshot_name);
     if !snapshot_root.is_dir() {
-        return Err(format!("Undo snapshot not found: {change_set_id}"));
+        return Err(format!("Undo snapshot not found: {snapshot_name}"));
     }
-
-    let meta_path = snapshot_root.join("meta.json");
-    let meta: serde_json::Value = std::fs::read_to_string(&meta_path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or(serde_json::json!({}));
-
-    let project_root = meta
-        .get("projectId")
-        .and_then(|v| v.as_str())
-        .map(PathBuf::from)
-        .ok_or_else(|| "Undo snapshot missing project id".to_string())?;
 
     let mut restored = Vec::new();
 
@@ -204,7 +219,7 @@ pub fn undo_apply(app: &tauri::AppHandle, change_set_id: &str) -> Result<Vec<Str
             .to_string_lossy()
             .replace('\\', "/");
 
-        if rel == "meta.json" {
+        if rel == "manifest.json" {
             continue;
         }
 
@@ -224,7 +239,7 @@ pub fn undo_apply(app: &tauri::AppHandle, change_set_id: &str) -> Result<Vec<Str
             } else {
                 format!("{dir}/{stripped}")
             };
-            let target = resolve_in_project(&project_root, &target_rel)?;
+            let target = resolve_in_project(&root, &target_rel)?;
             if target.exists() {
                 std::fs::remove_file(&target)
                     .map_err(|e| format!("undo delete {target_rel}: {e}"))?;
@@ -234,7 +249,7 @@ pub fn undo_apply(app: &tauri::AppHandle, change_set_id: &str) -> Result<Vec<Str
         }
 
         // Restore snapshot content (modify/delete undo)
-        let target = resolve_in_project(&project_root, &rel)?;
+        let target = resolve_in_project(&root, &rel)?;
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent).ok();
         }
@@ -245,29 +260,27 @@ pub fn undo_apply(app: &tauri::AppHandle, change_set_id: &str) -> Result<Vec<Str
     Ok(restored)
 }
 
-/// List undo snapshot ids for a project.
-pub fn list_undo_snapshots(
-    app: &tauri::AppHandle,
-    project_root: &str,
-) -> Result<Vec<String>, String> {
-    let dir = undo_dir(app)?;
-    let mut ids = Vec::new();
+/// List snapshot directory names under `<project>/.history/`, newest first.
+pub fn list_undo_snapshots(project_root: &str) -> Result<Vec<String>, String> {
+    let root = PathBuf::from(project_root);
+    let dir = history_root(&root);
+    if !dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut ids: Vec<String> = Vec::new();
     if let Ok(entries) = std::fs::read_dir(&dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if !path.is_dir() {
-                continue;
-            }
-            let meta_path = path.join("meta.json");
-            if let Ok(meta) = std::fs::read_to_string(&meta_path) {
-                if meta.contains(project_root) {
-                    if let Some(id) = path.file_name() {
-                        ids.push(id.to_string_lossy().to_string());
-                    }
+            if path.is_dir() {
+                if let Some(name) = path.file_name() {
+                    ids.push(name.to_string_lossy().to_string());
                 }
             }
         }
     }
+    // Newest first by name (timestamp prefix)
+    ids.sort();
+    ids.reverse();
     Ok(ids)
 }
 

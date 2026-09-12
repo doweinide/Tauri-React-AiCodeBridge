@@ -1,30 +1,96 @@
-import { useEffect } from 'react'
-import { Copy, RefreshCw, Search } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  CheckCheck,
+  Copy,
+  Eraser,
+  MoveRight,
+  RefreshCw,
+  Search,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from '@/components/ui/resizable'
+import { cn } from '@/lib/utils'
+import { CodeViewer, JsonTreeView } from '@/components/code'
 import { useProjectStore } from '@/features/project/project-store'
 import { FileTree, useFileCount } from './FileTree'
-import { formatNumber, useContextStore } from './context-store'
+import { formatNumber, useContextStore, type PreviewTab } from './context-store'
+
+function IconAction({
+  label,
+  onClick,
+  children,
+  tone = 'default',
+}: {
+  label: string
+  onClick: () => void
+  children: React.ReactNode
+  tone?: 'default' | 'primary'
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={cn(
+            'h-6 w-6 text-muted-foreground hover:text-foreground',
+            tone === 'primary' && 'hover:text-primary'
+          )}
+          onClick={onClick}
+        >
+          {children}
+          <span className="sr-only">{label}</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="text-[11px]">
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+const TABS: { id: PreviewTab; label: string }[] = [
+  { id: 'tree', label: 'Tree' },
+  { id: 'json', label: 'JSON' },
+  { id: 'raw', label: 'Raw' },
+]
 
 export function ContextBuilderPage() {
   const project = useProjectStore(s => s.project)
   const rescan = useProjectStore(s => s.rescan)
-  const selected = useContextStore(s => s.selected)
+  const structureSelected = useContextStore(s => s.structureSelected)
+  const contentSelected = useContextStore(s => s.contentSelected)
   const search = useContextStore(s => s.search)
   const setSearch = useContextStore(s => s.setSearch)
-  const selectAll = useContextStore(s => s.selectAll)
-  const preview = useContextStore(s => s.preview)
-  const previewMode = useContextStore(s => s.previewMode)
-  const setPreviewMode = useContextStore(s => s.setPreviewMode)
+  const selectAllStructure = useContextStore(s => s.selectAllStructure)
+  const selectAllContent = useContextStore(s => s.selectAllContent)
+  const clearStructure = useContextStore(s => s.clearStructure)
+  const clearContent = useContextStore(s => s.clearContent)
+  const copyStructureToContent = useContextStore(s => s.copyStructureToContent)
+  const buildResult = useContextStore(s => s.buildResult)
+  const protocolContext = useContextStore(s => s.protocolContext)
+  const previewText = useContextStore(s => s.previewText)
+  const previewTab = useContextStore(s => s.previewTab)
+  const setPreviewTab = useContextStore(s => s.setPreviewTab)
   const refreshPreview = useContextStore(s => s.refreshPreview)
+  const copyContext = useContextStore(s => s.copyContext)
   const reset = useContextStore(s => s.reset)
+  const selectedFileForCode = useContextStore(s => s.selectedFileForCode)
+  const setSelectedFileForCode = useContextStore(s => s.setSelectedFileForCode)
   const fileCount = useFileCount(project?.tree ?? null)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     reset()
@@ -32,8 +98,13 @@ export function ContextBuilderPage() {
 
   useEffect(() => {
     if (!project) return
-    void refreshPreview(project.rootPath, project.tree)
-  }, [project, selected, previewMode, refreshPreview])
+    void refreshPreview(project.rootPath)
+  }, [project, structureSelected, contentSelected, refreshPreview])
+
+  const codeFile = useMemo(() => {
+    if (!selectedFileForCode || !buildResult) return null
+    return buildResult.files.find(f => f.path === selectedFileForCode) ?? null
+  }, [selectedFileForCode, buildResult])
 
   if (!project) {
     return (
@@ -44,58 +115,22 @@ export function ContextBuilderPage() {
     )
   }
 
-  const copyContext = async (mode: 'structure' | 'selected' | 'all') => {
-    setPreviewMode(mode)
-    // force rebuild with new mode
-    const { buildProjectContext } = await import('@/services/project')
-    const { collectFilePaths } =
-      await import('@/features/project/project-store')
-    const paths =
-      mode === 'all'
-        ? collectFilePaths(project.tree)
-        : mode === 'selected'
-          ? [...selected]
-          : []
+  const doCopy = async () => {
     try {
-      const result = await buildProjectContext(project.rootPath, mode, paths)
-      await navigator.clipboard.writeText(result.text)
-      useContextStore.setState({
-        preview: result,
-        previewMode: mode,
-        fileHashes: Object.fromEntries(result.files.map(f => [f.path, f.hash])),
-      })
-      toast.success(
-        mode === 'structure'
-          ? '已复制项目结构'
-          : mode === 'all'
-            ? '已复制 Structure + All Contents'
-            : '已复制 Structure + Selected Contents'
-      )
+      await refreshPreview(project.rootPath)
+      await copyContext()
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+      toast.success('已复制 Project Context JSON（结构 + 内容按当前勾选）')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
     }
   }
 
-  const selectedChars = (preview?.files ?? [])
-    .filter(f => selected.has(f.path) || previewMode !== 'selected')
-    .reduce((s, f) => s + f.content.length, 0)
-
-  const shownChars = preview?.totalChars ?? 0
-  const shownTokens = preview?.estimatedTokens ?? 0
-  const projectTokens = preview?.projectTotalTokens ?? 0
-  const reduction = preview?.reductionPercent ?? 0
-  const shownFiles =
-    previewMode === 'structure'
-      ? 0
-      : previewMode === 'all'
-        ? (preview?.fileCount ?? 0)
-        : selected.size
-
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
-      {/* toolbar */}
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-muted/30 px-2.5 py-2 sm:h-[46px] sm:flex-nowrap sm:py-0 sm:px-3">
-        <div className="flex w-full min-w-[140px] max-w-[220px] flex-1 items-center gap-1.5 rounded-[7px] border border-transparent bg-muted px-2.5 py-1.5 transition-colors focus-within:border-primary sm:w-[210px] sm:flex-none">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-muted/30 px-2.5 py-2 sm:flex-nowrap sm:px-3">
+        <div className="flex w-full min-w-[140px] max-w-[200px] flex-1 items-center gap-1.5 rounded-[7px] border border-transparent bg-muted px-2.5 py-1.5 transition-colors focus-within:border-primary sm:w-[180px] sm:flex-none">
           <Search className="h-[13px] w-[13px] shrink-0 text-muted-foreground" />
           <Input
             value={search}
@@ -104,23 +139,60 @@ export function ContextBuilderPage() {
             className="h-auto w-full min-w-0 border-none bg-transparent p-0 text-[12px] shadow-none outline-none focus-visible:ring-0"
           />
         </div>
+
         <div className="mx-0.5 hidden h-5 w-px bg-border sm:block" />
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 px-2.5 text-[11.5px]"
-          onClick={() => selectAll(project.tree, true)}
+
+        {/* 结构 legend + icon actions */}
+        <div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background/40 px-1.5 py-0.5">
+          <span
+            className="mr-0.5 inline-block h-2.5 w-2.5 rounded-[3px] border border-primary bg-primary"
+            aria-hidden
+          />
+          <span className="mr-0.5 text-[10.5px] font-medium tracking-wide text-muted-foreground">
+            结构
+          </span>
+          <IconAction
+            label="全选结构"
+            onClick={() => void selectAllStructure(project.tree, true)}
+          >
+            <CheckCheck className="h-3.5 w-3.5" />
+          </IconAction>
+          <IconAction label="清空结构" onClick={clearStructure}>
+            <Eraser className="h-3.5 w-3.5" />
+          </IconAction>
+        </div>
+
+        {/* 内容 legend + icon actions */}
+        <div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background/40 px-1.5 py-0.5">
+          <span
+            className="mr-0.5 inline-block h-2.5 w-2.5 rounded-[3px] border border-sky-500 bg-sky-500"
+            aria-hidden
+          />
+          <span className="mr-0.5 text-[10.5px] font-medium tracking-wide text-muted-foreground">
+            内容
+          </span>
+          <IconAction
+            label="全选内容"
+            onClick={() => selectAllContent(project.tree, true)}
+          >
+            <CheckCheck className="h-3.5 w-3.5" />
+          </IconAction>
+          <IconAction label="清空内容" onClick={clearContent}>
+            <Eraser className="h-3.5 w-3.5" />
+          </IconAction>
+        </div>
+
+        <IconAction
+          label="将结构勾选同步为内容勾选"
+          tone="primary"
+          onClick={() => {
+            copyStructureToContent()
+            toast.success('已将结构勾选同步为内容勾选')
+          }}
         >
-          全选
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 px-2.5 text-[11.5px]"
-          onClick={() => selectAll(project.tree, false)}
-        >
-          清空
-        </Button>
+          <MoveRight className="h-3.5 w-3.5" />
+        </IconAction>
+
         <Button
           variant="outline"
           size="sm"
@@ -133,42 +205,24 @@ export function ContextBuilderPage() {
 
         <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
           <Button
-            variant="secondary"
             size="sm"
             className="h-7 px-2.5 text-[11.5px]"
-            onClick={() => void copyContext('structure')}
+            onClick={() => void doCopy()}
           >
             <Copy className="mr-1 h-3 w-3" />
-            Structure
-          </Button>
-          <Button
-            size="sm"
-            className="h-7 px-2.5 text-[11.5px]"
-            onClick={() => void copyContext('selected')}
-          >
-            <Copy className="mr-1 h-3 w-3" />
-            Structure + Selected
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="h-7 px-2.5 text-[11.5px]"
-            onClick={() => void copyContext('all')}
-          >
-            Structure + All
+            {copied ? 'Copied!' : 'Copy Context'}
           </Button>
         </div>
       </div>
 
-      {/* body — resizable file tree | preview */}
       <ResizablePanelGroup
         direction="horizontal"
         className="min-h-0 min-w-0 flex-1"
       >
         <ResizablePanel
-          defaultSize={28}
-          minSize={16}
-          maxSize={48}
+          defaultSize={32}
+          minSize={20}
+          maxSize={52}
           className="min-w-0"
         >
           <div className="flex h-full min-h-0 min-w-0 flex-col border-r bg-background/40">
@@ -179,56 +233,125 @@ export function ContextBuilderPage() {
               <span className="rounded-full bg-muted px-2 py-px text-[10.5px] font-medium text-muted-foreground">
                 {fileCount} files
               </span>
+              <span className="ml-auto rounded-full bg-primary/10 px-2 py-px text-[10.5px] font-medium text-primary">
+                S {structureSelected.size} · C {contentSelected.size}
+              </span>
             </div>
             {project.tree ? <FileTree root={project.tree} /> : null}
           </div>
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={72} minSize={40} className="min-w-0">
+        <ResizablePanel defaultSize={68} minSize={40} className="min-w-0">
           <div className="flex h-full min-h-0 min-w-0 flex-col">
-            <div className="flex h-9 shrink-0 items-center gap-2 overflow-hidden border-b px-3.5">
-              <span className="shrink-0 rounded-[5px] bg-primary/15 px-1.5 py-px text-[10px] font-semibold tracking-[.3px] text-primary">
-                PREVIEW
-              </span>
-              <span className="hidden truncate text-[11.5px] text-muted-foreground sm:inline">
-                预览内容 = 复制后发送给 AI 的内容
-              </span>
-              <span className="ml-auto shrink-0 truncate text-[11px] text-muted-foreground">
-                {previewMode === 'structure'
-                  ? 'Structure Only'
-                  : previewMode === 'all'
-                    ? 'Structure + All'
-                    : 'Structure + Selected'}
+            <div className="flex h-10 shrink-0 items-center gap-1 border-b px-2">
+              {TABS.map(tab => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setPreviewTab(tab.id)}
+                  className={cn(
+                    'rounded-md px-2.5 py-1 text-[11.5px] transition-colors',
+                    previewTab === tab.id
+                      ? 'bg-primary/12 font-medium text-primary'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+              <span className="ml-auto truncate text-[11px] text-muted-foreground">
+                结构与内容独立勾选 · Preview = 复制内容
               </span>
             </div>
-            <pre className="m-0 min-h-0 min-w-0 flex-1 overflow-auto bg-background px-3 py-3.5 font-mono text-[11.5px] leading-[1.72] whitespace-pre text-muted-foreground select-text sm:px-4">
-              {preview?.text ?? ''}
-            </pre>
+
+            <div className="min-h-0 min-w-0 flex-1 overflow-hidden p-2">
+              {previewTab === 'tree' && protocolContext ? (
+                <div className="flex h-full min-h-0 flex-col gap-2">
+                  <JsonTreeView
+                    value={protocolContext}
+                    collapsed={1}
+                    className="min-h-0 flex-1"
+                  />
+                  {(buildResult?.files.length ?? 0) > 0 && (
+                    <div className="flex max-h-[40%] min-h-0 shrink-0 flex-col gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1 px-1">
+                        <span className="text-[11px] text-muted-foreground">
+                          内容文件 ·
+                        </span>
+                        {(buildResult?.files ?? []).map(f => (
+                          <button
+                            key={f.path}
+                            type="button"
+                            onClick={() => setSelectedFileForCode(f.path)}
+                            className={cn(
+                              'rounded px-1.5 py-0.5 font-mono text-[10.5px] transition-colors',
+                              selectedFileForCode === f.path
+                                ? 'bg-primary/15 text-primary'
+                                : 'bg-muted text-muted-foreground hover:text-foreground'
+                            )}
+                          >
+                            {f.path.split('/').pop()}
+                          </button>
+                        ))}
+                      </div>
+                      {codeFile ? (
+                        <CodeViewer
+                          value={codeFile.content}
+                          className="min-h-0 flex-1"
+                          minHeight="140px"
+                        />
+                      ) : (
+                        <p className="px-1 text-[11px] text-muted-foreground">
+                          选择文件后用 CodeMirror 查看完整内容
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : previewTab === 'json' && protocolContext ? (
+                <JsonTreeView
+                  value={protocolContext}
+                  collapsed={false}
+                  className="h-full"
+                />
+              ) : (
+                <pre className="m-0 h-full min-h-0 overflow-auto bg-background px-3 py-3 font-mono text-[11.5px] leading-[1.72] whitespace-pre text-muted-foreground select-text">
+                  {previewText}
+                </pre>
+              )}
+            </div>
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
 
-      {/* stats */}
       <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-2 border-t bg-muted/30 px-3 py-2.5 sm:gap-[22px] sm:px-4">
-        <Stat label="Files" value={String(shownFiles)} />
+        <Stat
+          label="Structure Files"
+          value={String(buildResult?.structureFileCount ?? 0)}
+        />
+        <Stat
+          label="Content Files"
+          value={String(buildResult?.contentFileCount ?? 0)}
+          accent
+        />
         <Stat
           label="Characters"
-          value={formatNumber(shownChars || selectedChars)}
+          value={formatNumber(buildResult?.totalChars ?? 0)}
         />
         <Stat
           label="Estimated Tokens"
-          value={`~${formatNumber(shownTokens)}`}
+          value={`~${formatNumber(buildResult?.estimatedTokens ?? 0)}`}
           accent
           hint="估算值 · chars / 4"
         />
         <Stat
           label="Project Total"
-          value={`~${formatNumber(projectTokens)}`}
+          value={`~${formatNumber(buildResult?.projectTotalTokens ?? 0)}`}
           muted
         />
         <div className="ml-auto flex items-center gap-2.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5">
           <div className="font-mono text-[15px] font-bold text-emerald-500">
-            {reduction.toFixed(1)}%
+            {(buildResult?.reductionPercent ?? 0).toFixed(1)}%
           </div>
           <div className="text-[10.5px] leading-[1.3] text-emerald-400">
             Token
@@ -260,9 +383,11 @@ function Stat({
         {label}
       </div>
       <div
-        className={`font-mono text-[14px] font-semibold tracking-[-.3px] ${
-          accent ? 'text-primary' : muted ? 'text-muted-foreground' : ''
-        }`}
+        className={cn(
+          'font-mono text-[14px] font-semibold tracking-[-.3px]',
+          accent && 'text-primary',
+          muted && 'text-muted-foreground'
+        )}
       >
         {value}
       </div>

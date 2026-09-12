@@ -1,9 +1,11 @@
-//! Context building commands.
+//! Context building commands. Structure and content are independent selections.
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use crate::services::context_builder::{
-    build_context_text, estimate_tokens, read_files, ContextBuildResult, FileContent,
+    collect_file_paths, count_files, estimate_tokens, prune_tree_to_files, read_files,
+    ContextBuildResult, FileContent,
 };
 use crate::services::scanner;
 
@@ -21,39 +23,52 @@ pub async fn read_project_files(
     read_files(&root, &paths)
 }
 
-/// Build full context text + stats for a mode: structure | selected | all
+/// Build structured project context.
+///
+/// - `structure_paths`: file paths to include in the pruned structure tree
+/// - `content_paths`: file paths whose contents are read into `files[]`
+///
+/// Structure and content are independent: e.g. full structure of `src/auth/`
+/// plus content of a single Login file, without any `src/payment/` structure.
 #[tauri::command]
 #[specta::specta]
 pub async fn build_project_context(
     root_path: String,
-    mode: String,
-    selected_paths: Vec<String>,
+    structure_paths: Vec<String>,
+    content_paths: Vec<String>,
 ) -> Result<ContextBuildResult, String> {
     let root = PathBuf::from(&root_path);
     let scanned = scanner::scan_project(&root)?;
 
-    let mut all_paths = Vec::new();
-    crate::services::context_builder::collect_file_paths(&scanned.tree, &mut all_paths);
+    if structure_paths.len() > 5000 {
+        return Err("Too many structure paths (max 5000)".into());
+    }
+    if content_paths.len() > 500 {
+        return Err("Too many content files (max 500)".into());
+    }
 
-    let paths: Vec<String> = match mode.as_str() {
-        "structure" => Vec::new(),
-        "selected" => selected_paths,
-        "all" => all_paths,
-        other => return Err(format!("Unknown context mode: {other}")),
-    };
+    // Expand structure selection: paths may be file paths.
+    // (Dir recursive selection is handled on the frontend into file path lists.)
+    let structure_set: HashSet<String> = structure_paths.into_iter().collect();
+    let structure = prune_tree_to_files(&scanned.tree, &structure_set).unwrap_or_else(|| {
+        scanner::ProjectNode {
+            name: scanned.name.clone(),
+            path: String::new(),
+            node_type: "dir".into(),
+            size: None,
+            children: Some(Vec::new()),
+        }
+    });
 
-    let files = if paths.is_empty() {
+    let files = if content_paths.is_empty() {
         Vec::new()
     } else {
-        read_files(&root, &paths)?
+        read_files(&root, &content_paths)?
     };
 
-    let include_contents = mode != "structure";
-    let text = build_context_text(&scanned.name, &scanned.tree, &files, include_contents);
-
-    let selected_chars: usize = files.iter().map(|f| f.content.chars().count()).sum();
-    let total_chars: usize = text.chars().count();
-    // Project total estimated from file sizes (bytes ≈ chars for ASCII code)
+    let structure_file_count = count_files(&structure);
+    let content_file_count = files.len() as u32;
+    let total_chars: usize = files.iter().map(|f| f.content.chars().count()).sum();
     let project_total_bytes = scanned.total_bytes;
     let project_total_tokens = estimate_tokens(project_total_bytes as usize);
     let estimated_tokens = estimate_tokens(total_chars);
@@ -63,16 +78,36 @@ pub async fn build_project_context(
         (1.0 - (estimated_tokens as f64 / project_total_tokens as f64)) * 100.0
     };
 
-    let _ = selected_chars;
+    let mode = if content_file_count == 0 && structure_file_count > 0 {
+        "structure"
+    } else if structure_file_count == 0 && content_file_count == 0 {
+        "empty"
+    } else {
+        "custom"
+    };
 
     Ok(ContextBuildResult {
-        text,
+        project_name: scanned.name,
+        structure,
         files,
-        file_count: paths.len() as u32,
+        mode: mode.to_string(),
+        structure_file_count,
+        content_file_count,
         total_chars: total_chars as u32,
         estimated_tokens,
         project_total_bytes,
         project_total_tokens,
         reduction_percent: (reduction_percent * 10.0).round() / 10.0,
     })
+}
+
+/// Collect every file path in a scanned project (for "select all structure").
+#[tauri::command]
+#[specta::specta]
+pub async fn list_all_file_paths(root_path: String) -> Result<Vec<String>, String> {
+    let root = PathBuf::from(&root_path);
+    let scanned = scanner::scan_project(&root)?;
+    let mut paths = Vec::new();
+    collect_file_paths(&scanned.tree, &mut paths);
+    Ok(paths)
 }

@@ -91,16 +91,20 @@ vi.mock('@/lib/tauri/tauri-bindings', () => ({
     readProjectFiles: vi.fn().mockResolvedValue(ok([])),
     buildProjectContext: vi.fn().mockResolvedValue(
       ok({
-        text: '## 项目结构\n\ndemo/\n',
+        projectName: 'demo',
+        structure: emptyTree,
         files: [],
-        fileCount: 0,
-        totalChars: 20,
-        estimatedTokens: 5,
+        mode: 'empty',
+        structureFileCount: 0,
+        contentFileCount: 0,
+        totalChars: 0,
+        estimatedTokens: 0,
         projectTotalBytes: 0,
         projectTotalTokens: 0,
         reductionPercent: 0,
       })
     ),
+    listAllFilePaths: vi.fn().mockResolvedValue(ok([])),
     applyAiChanges: vi
       .fn()
       .mockResolvedValue(

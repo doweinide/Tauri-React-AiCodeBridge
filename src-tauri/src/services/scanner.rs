@@ -19,6 +19,7 @@ const DEFAULT_DIR_IGNORES: &[&str] = &[
     "venv",
     "__pycache__",
     ".DS_Store",
+    ".history",
 ];
 
 const DEFAULT_SENSITIVE_BASENAMES: &[&str] = &[".env", "credentials.json"];

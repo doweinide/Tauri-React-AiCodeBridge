@@ -43,7 +43,7 @@
     color: inherit;
   }
 
-  /* Allow text selection in specific areas */
+  /* Allow text selection & paste in form controls (Tauri webview) */
   input,
   textarea,
   [contenteditable='true'] {
@@ -52,6 +52,12 @@
     -moz-user-select: text !important;
     -ms-user-select: text !important;
     cursor: text !important;
+    pointer-events: auto;
+  }
+
+  textarea {
+    /* Avoid webview quirks that block IME / paste */
+    -webkit-app-region: no-drag;
   }
 
   /* Utility class for when pointer cursor is explicitly needed */

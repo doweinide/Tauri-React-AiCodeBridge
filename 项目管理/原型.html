@@ -1,0 +1,1938 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Context Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              base: '#0d0f14',
+              s1: '#12151c',
+              s2: '#171b24',
+              s3: '#1d222c',
+              s4: '#232936',
+              line: '#252b37',
+              line2: '#323a49',
+              t1: '#e6e9ef',
+              t2: '#9aa3b2',
+              t3: '#69728a',
+              acc: '#6366f1',
+              accL: '#818cf8',
+              accBg: 'rgba(99,102,241,.13)',
+              ok: '#34d399',
+              okBg: 'rgba(52,211,153,.12)',
+              warn: '#fbbf24',
+              warnBg: 'rgba(251,191,36,.12)',
+              bad: '#f87171',
+              badBg: 'rgba(248,113,113,.12)',
+            },
+            fontFamily: {
+              mono: [
+                'SF Mono',
+                'JetBrains Mono',
+                'Fira Code',
+                'Menlo',
+                'Consolas',
+                'monospace',
+              ],
+            },
+          },
+        },
+      }
+    </script>
+  </head>
+  <body
+    class="bg-base text-t1 text-[13px] antialiased overflow-hidden h-screen"
+  >
+    <div class="flex h-screen overflow-hidden">
+      <!-- ===================== SIDEBAR ===================== -->
+      <aside
+        class="w-[212px] shrink-0 bg-s1 border-r border-line flex flex-col py-3.5 px-2.5"
+      >
+        <!-- Brand -->
+        <div class="flex items-center gap-2.5 px-2 pt-1 pb-[18px]">
+          <div
+            class="w-[26px] h-[26px] shrink-0 rounded-[7px] bg-gradient-to-br from-acc to-purple-500 flex items-center justify-center text-[13px] font-bold text-white shadow-[0_3px_12px_rgba(99,102,241,.4)]"
+          >
+            AC
+          </div>
+          <div class="min-w-0">
+            <div
+              class="font-semibold text-[13px] leading-tight tracking-[.2px]"
+            >
+              AI Context Tool
+            </div>
+            <div class="text-[10px] text-t3 leading-tight mt-px">
+              v1.0 · MVP
+            </div>
+          </div>
+        </div>
+
+        <!-- Nav -->
+        <nav class="flex flex-col gap-0.5">
+          <div
+            class="text-[10px] text-t3 uppercase tracking-[.8px] px-2.5 pt-3 pb-[5px] font-semibold"
+          >
+            Workspace
+          </div>
+
+          <div
+            data-page="context"
+            class="nav-item flex items-center gap-2.5 px-2.5 py-2 rounded-[7px] text-[12.5px] text-t2 cursor-pointer select-none transition-colors hover:bg-s3 hover:text-t1"
+          >
+            <svg
+              class="w-[15px] h-[15px] shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+            >
+              <path d="M4 6h16M4 12h16M4 18h10" />
+            </svg>
+            Context Builder
+          </div>
+
+          <div
+            data-page="exchange"
+            class="nav-item flex items-center gap-2.5 px-2.5 py-2 rounded-[7px] text-[12.5px] text-t2 cursor-pointer select-none transition-colors hover:bg-s3 hover:text-t1"
+          >
+            <svg
+              class="w-[15px] h-[15px] shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+            >
+              <path
+                d="M8 3H5a2 2 0 0 0-2 2v3m0 8v3a2 2 0 0 0 2 2h3m8-18h3a2 2 0 0 1 2 2v3m0 8v3a2 2 0 0 1-2 2h-3"
+              />
+            </svg>
+            AI Exchange
+          </div>
+
+          <div
+            data-page="review"
+            class="nav-item flex items-center gap-2.5 px-2.5 py-2 rounded-[7px] text-[12.5px] text-t2 cursor-pointer select-none transition-colors hover:bg-s3 hover:text-t1"
+          >
+            <svg
+              class="w-[15px] h-[15px] shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+            >
+              <path
+                d="M12 3v6m0 0 3-3m-3 3L9 6M4 13v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"
+              />
+            </svg>
+            Change Review
+            <span
+              id="changeBadge"
+              class="ml-auto bg-warnBg text-warn text-[10px] font-semibold px-1.5 py-px rounded-[9px]"
+              >3</span
+            >
+          </div>
+
+          <div
+            class="text-[10px] text-t3 uppercase tracking-[.8px] px-2.5 pt-3 pb-[5px] font-semibold"
+          >
+            System
+          </div>
+
+          <div
+            data-page="settings"
+            class="nav-item flex items-center gap-2.5 px-2.5 py-2 rounded-[7px] text-[12.5px] text-t2 cursor-pointer select-none transition-colors hover:bg-s3 hover:text-t1"
+          >
+            <svg
+              class="w-[15px] h-[15px] shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10.6 3V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 16.1 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 20.4 9v.09a1.65 1.65 0 0 0 1.51 1H22a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+              />
+            </svg>
+            Settings
+          </div>
+        </nav>
+
+        <!-- Foot -->
+        <div class="mt-auto pt-2.5 px-2 border-t border-line">
+          <div class="text-[10.5px] text-t3 leading-[1.7]">
+            <span
+              class="inline-block w-1.5 h-1.5 rounded-full bg-ok mr-1.5"
+            ></span>
+            <span id="sideProj">flutter_starter</span> · 已连接
+          </div>
+          <div
+            class="text-[10.5px] text-t3 leading-[1.7] pl-[11px] truncate"
+            id="sidePath"
+          >
+            ~/code/.../flutter_starter
+          </div>
+        </div>
+      </aside>
+
+      <!-- ===================== MAIN ===================== -->
+      <div class="flex-1 flex flex-col overflow-hidden min-w-0">
+        <!-- ===== TOPBAR ===== -->
+        <header
+          class="h-12 shrink-0 border-b border-line bg-s1 flex items-center gap-3 px-3.5 relative z-40"
+        >
+          <!-- 项目切换器 -->
+          <div class="relative shrink-0">
+            <button
+              id="projectBtn"
+              onclick="toggleProjectMenu(event)"
+              class="flex items-center gap-2 pl-1.5 pr-2 py-1.5 rounded-lg bg-s3 border border-line cursor-pointer text-[12.5px] font-medium text-t1 transition-colors hover:bg-s4 hover:border-line2 max-w-[270px]"
+            >
+              <span
+                id="curAvatar"
+                class="w-[19px] h-[19px] shrink-0 rounded-[5px] flex items-center justify-center text-[9px] font-bold text-white tracking-[.2px]"
+                style="background: #3e9c4a"
+                >FS</span
+              >
+              <span id="curName" class="truncate">flutter_starter</span>
+              <svg
+                class="w-3 h-3 text-t3 transition-transform duration-150"
+                id="projCaret"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+
+            <!-- Dropdown -->
+            <div
+              id="projectMenu"
+              class="absolute top-[calc(100%+8px)] left-0 w-[358px] bg-s2 border border-line2 rounded-[11px] shadow-[0_16px_44px_rgba(0,0,0,.62)] z-50 overflow-hidden flex flex-col origin-top transition-all duration-150 opacity-0 scale-95 pointer-events-none"
+            >
+              <div class="relative p-2.5 pb-2 border-b border-line">
+                <svg
+                  class="absolute left-[19px] top-1/2 -translate-y-1/2 w-[13px] h-[13px] text-t3 pointer-events-none"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-3.5-3.5" />
+                </svg>
+                <input
+                  id="pmSearch"
+                  oninput="renderProjectMenu(this.value)"
+                  placeholder="搜索项目…"
+                  class="w-full bg-base border border-line rounded-[7px] pl-[30px] pr-2.5 py-1.5 text-[12px] text-t1 outline-none transition-colors focus:border-acc placeholder:text-t3"
+                />
+              </div>
+
+              <div class="p-[5px] border-b border-line">
+                <div
+                  onclick="openNewProject()"
+                  class="group flex items-center gap-2.5 px-2.5 py-[7px] rounded-[7px] cursor-pointer text-[12.5px] text-t2 select-none transition-colors hover:bg-s3 hover:text-t1"
+                >
+                  <svg
+                    class="w-[15px] h-[15px] shrink-0 text-t3 group-hover:text-accL"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                  >
+                    <path
+                      d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"
+                    />
+                  </svg>
+                  打开文件夹
+                </div>
+                <div
+                  onclick="toast('克隆 Git 仓库')"
+                  class="group flex items-center gap-2.5 px-2.5 py-[7px] rounded-[7px] cursor-pointer text-[12.5px] text-t2 select-none transition-colors hover:bg-s3 hover:text-t1"
+                >
+                  <svg
+                    class="w-[15px] h-[15px] shrink-0 text-t3 group-hover:text-accL"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                  >
+                    <circle cx="6" cy="6" r="2.4" />
+                    <circle cx="6" cy="18" r="2.4" />
+                    <circle cx="18" cy="12" r="2.4" />
+                    <path d="M6 8.4v7.2M8.4 6H14a3 3 0 0 1 3 3v.6" />
+                  </svg>
+                  克隆 Git 仓库
+                </div>
+                <div
+                  onclick="toast('连接远程主机')"
+                  class="group flex items-center gap-2.5 px-2.5 py-[7px] rounded-[7px] cursor-pointer text-[12.5px] text-t2 select-none transition-colors hover:bg-s3 hover:text-t1"
+                >
+                  <svg
+                    class="w-[15px] h-[15px] shrink-0 text-t3 group-hover:text-accL"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                  >
+                    <rect x="3" y="4" width="18" height="12" rx="2" />
+                    <path d="M8 20h8M12 16v4" />
+                  </svg>
+                  连接远程主机
+                </div>
+              </div>
+
+              <div
+                class="px-3.5 pt-2.5 pb-1 text-[10px] uppercase tracking-[.9px] text-t3 font-semibold"
+              >
+                最近
+              </div>
+              <div
+                id="pmList"
+                class="max-h-[300px] overflow-y-auto px-[5px] pb-1.5"
+              ></div>
+            </div>
+          </div>
+
+          <div class="w-px h-5 bg-line shrink-0"></div>
+          <h1
+            id="pageTitle"
+            class="text-[13px] font-semibold whitespace-nowrap"
+          >
+            Context Builder
+          </h1>
+
+          <div class="ml-auto flex items-center gap-2">
+            <span
+              id="selPill"
+              class="text-[10.5px] font-medium px-2 py-px rounded-full bg-s3 text-t2"
+              >2 files selected</span
+            >
+            <button
+              onclick="toast('项目已重新扫描')"
+              class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-transparent border border-line2 text-t2 transition-colors hover:bg-s3 hover:text-t1"
+            >
+              <svg
+                class="w-[13px] h-[13px]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+              >
+                <path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5" />
+              </svg>
+              Rescan
+            </button>
+          </div>
+        </header>
+
+        <!-- ===== CONTENT ===== -->
+        <div class="flex-1 overflow-hidden relative">
+          <!-- ---------- Page: Context Builder ---------- -->
+          <section id="page-context" class="page flex flex-col h-full min-h-0">
+            <!-- toolbar -->
+            <div
+              class="h-[46px] shrink-0 border-b border-line bg-s1 flex items-center gap-2 px-3"
+            >
+              <div
+                class="flex items-center gap-1.5 bg-s3 border border-transparent rounded-[7px] px-2.5 py-1.5 w-[210px] transition-colors focus-within:border-acc"
+              >
+                <svg
+                  class="w-[13px] h-[13px] shrink-0 text-t3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-3.5-3.5" />
+                </svg>
+                <input
+                  id="treeSearch"
+                  oninput="onSearch(this.value)"
+                  placeholder="搜索文件…"
+                  class="bg-transparent border-none outline-none text-[12px] text-t1 w-full placeholder:text-t3"
+                />
+              </div>
+              <div class="w-px h-5 bg-line mx-1"></div>
+              <button
+                onclick="selectAll(true)"
+                class="px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-transparent border border-line2 text-t2 transition-colors hover:bg-s3 hover:text-t1"
+              >
+                全选
+              </button>
+              <button
+                onclick="selectAll(false)"
+                class="px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-transparent border border-line2 text-t2 transition-colors hover:bg-s3 hover:text-t1"
+              >
+                清空
+              </button>
+
+              <div class="ml-auto flex items-center gap-1.5">
+                <button
+                  onclick="copyCtx('structure')"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-s3 text-t2 border border-transparent transition-colors hover:bg-s4 hover:text-t1 hover:border-line2"
+                >
+                  <svg
+                    class="w-[13px] h-[13px]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.9"
+                  >
+                    <rect x="9" y="9" width="11" height="11" rx="2" />
+                    <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                  </svg>
+                  Structure
+                </button>
+                <button
+                  onclick="copyCtx('selected')"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-acc text-white border border-acc transition-colors hover:bg-[#7275f3]"
+                >
+                  <svg
+                    class="w-[13px] h-[13px]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.9"
+                  >
+                    <rect x="9" y="9" width="11" height="11" rx="2" />
+                    <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                  </svg>
+                  Structure + Selected
+                </button>
+                <button
+                  onclick="copyCtx('all')"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-s3 text-t2 border border-transparent transition-colors hover:bg-s4 hover:text-t1 hover:border-line2"
+                >
+                  Structure + All
+                </button>
+                <button
+                  onclick="copyCtx('prompt')"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-transparent border border-line2 text-t2 transition-colors hover:bg-s3 hover:text-t1"
+                >
+                  <svg
+                    class="w-[13px] h-[13px]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.9"
+                  >
+                    <path
+                      d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1M7.7 16.3l-2.1 2.1"
+                    />
+                  </svg>
+                  AI Prompt
+                </button>
+              </div>
+            </div>
+
+            <!-- body -->
+            <div class="flex-1 flex min-h-0 overflow-hidden">
+              <!-- file tree -->
+              <div
+                class="w-[290px] shrink-0 border-r border-line bg-s1 flex flex-col min-h-0"
+              >
+                <div
+                  class="px-3 py-2.5 border-b border-line flex items-center gap-2"
+                >
+                  <span
+                    class="text-[11px] font-semibold text-t2 tracking-[.5px] uppercase"
+                    >File Tree</span
+                  >
+                  <span
+                    id="treeCount"
+                    class="text-[10.5px] font-medium px-2 py-px rounded-full bg-s3 text-t2"
+                    >9 files</span
+                  >
+                </div>
+                <div
+                  id="treeWrap"
+                  class="flex-1 overflow-y-auto py-1.5 px-1.5 pb-4"
+                ></div>
+              </div>
+
+              <!-- preview -->
+              <div class="flex-1 flex flex-col min-w-0 min-h-0">
+                <div
+                  class="h-9 shrink-0 flex items-center gap-2 px-3.5 border-b border-line bg-s1"
+                >
+                  <span
+                    class="text-[10px] font-semibold px-1.5 py-px rounded-[5px] bg-accBg text-accL tracking-[.3px]"
+                    >PREVIEW</span
+                  >
+                  <span class="text-[11.5px] text-t3"
+                    >预览内容 = 复制后发送给 AI 的内容</span
+                  >
+                  <span id="previewMeta" class="ml-auto text-[11px] text-t3"
+                    >Structure + Selected Contents</span
+                  >
+                </div>
+                <pre
+                  id="previewBox"
+                  class="flex-1 overflow-auto py-3.5 px-4 font-mono text-[11.5px] leading-[1.72] text-[#b9c2d0] whitespace-pre bg-base m-0"
+                ></pre>
+              </div>
+            </div>
+
+            <!-- stats -->
+            <div
+              class="shrink-0 border-t border-line bg-s1 px-4 py-2.5 flex items-center gap-[22px]"
+            >
+              <div class="flex flex-col gap-px">
+                <div
+                  class="text-[10px] text-t3 uppercase tracking-[.7px] font-semibold"
+                >
+                  Files
+                </div>
+                <div
+                  id="statFiles"
+                  class="text-[14px] font-semibold font-mono tracking-[-.3px]"
+                >
+                  2
+                </div>
+              </div>
+              <div class="flex flex-col gap-px">
+                <div
+                  class="text-[10px] text-t3 uppercase tracking-[.7px] font-semibold"
+                >
+                  Characters
+                </div>
+                <div
+                  id="statChars"
+                  class="text-[14px] font-semibold font-mono tracking-[-.3px]"
+                >
+                  21,120
+                </div>
+              </div>
+              <div class="flex flex-col gap-px">
+                <div
+                  class="text-[10px] text-t3 uppercase tracking-[.7px] font-semibold"
+                >
+                  Estimated Tokens
+                </div>
+                <div
+                  id="statTokens"
+                  class="text-[14px] font-semibold font-mono tracking-[-.3px] text-accL"
+                >
+                  ~5,280
+                </div>
+                <div class="text-[10.5px] text-t3">估算值 · chars / 4</div>
+              </div>
+              <div class="flex flex-col gap-px">
+                <div
+                  class="text-[10px] text-t3 uppercase tracking-[.7px] font-semibold"
+                >
+                  Project Total
+                </div>
+                <div
+                  id="statTotal"
+                  class="text-[14px] font-semibold font-mono tracking-[-.3px] text-t3"
+                >
+                  ~16,080
+                </div>
+              </div>
+              <div
+                class="ml-auto flex items-center gap-2.5 bg-okBg border border-[rgba(52,211,153,.25)] px-3 py-1.5 rounded-lg"
+              >
+                <div
+                  id="statReduction"
+                  class="text-[15px] font-bold text-ok font-mono"
+                >
+                  67.2%
+                </div>
+                <div class="text-[10.5px] text-[#7fd8b4] leading-[1.3]">
+                  Token<br />Reduction
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ---------- Page: AI Exchange ---------- -->
+          <section
+            id="page-exchange"
+            class="page hidden flex-col h-full min-h-0"
+          >
+            <div class="flex-1 overflow-y-auto px-[30px] pt-[26px] pb-10">
+              <div class="flex flex-col gap-4 max-w-[900px]">
+                <!-- step 1 -->
+                <div
+                  class="bg-s1 border border-line rounded-[11px] overflow-hidden"
+                >
+                  <div class="px-4 py-3 flex items-center gap-2.5">
+                    <div
+                      id="step1"
+                      class="w-[21px] h-[21px] shrink-0 rounded-full bg-accBg text-accL text-[11px] font-bold flex items-center justify-center"
+                    >
+                      1
+                    </div>
+                    <div>
+                      <div class="text-[13px] font-semibold">复制 Context</div>
+                      <div class="text-[11.5px] text-t3 mt-px">
+                        把选中的项目上下文复制到剪贴板
+                      </div>
+                    </div>
+                    <button
+                      onclick="copyCtx('selected')"
+                      class="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium bg-acc text-white transition-colors hover:bg-[#7275f3]"
+                    >
+                      <svg
+                        class="w-[13px] h-[13px]"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.9"
+                      >
+                        <rect x="9" y="9" width="11" height="11" rx="2" />
+                        <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                      </svg>
+                      Copy Context
+                    </button>
+                  </div>
+                </div>
+
+                <!-- step 2 -->
+                <div
+                  class="bg-s1 border border-line rounded-[11px] overflow-hidden"
+                >
+                  <div
+                    class="px-4 py-3 border-b border-line flex items-center gap-2.5"
+                  >
+                    <div
+                      class="w-[21px] h-[21px] shrink-0 rounded-full bg-accBg text-accL text-[11px] font-bold flex items-center justify-center"
+                    >
+                      2
+                    </div>
+                    <div>
+                      <div class="text-[13px] font-semibold">复制 AI 指令</div>
+                      <div class="text-[11.5px] text-t3 mt-px">
+                        告诉 AI 按固定格式返回结构化修改结果
+                      </div>
+                    </div>
+                    <button
+                      onclick="copyCtx('prompt')"
+                      class="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium bg-transparent border border-line2 text-t2 transition-colors hover:bg-s3 hover:text-t1"
+                    >
+                      Copy Prompt
+                    </button>
+                  </div>
+                  <div class="p-4">
+                    <div
+                      id="promptBox"
+                      class="bg-base border border-line rounded-lg px-3.5 py-3 font-mono text-[11.5px] leading-[1.65] text-[#b9c2d0] max-h-[260px] overflow-auto whitespace-pre"
+                    ></div>
+                  </div>
+                </div>
+
+                <!-- step 3 -->
+                <div
+                  class="bg-s1 border border-line rounded-[11px] overflow-hidden"
+                >
+                  <div
+                    class="px-4 py-3 border-b border-line flex items-center gap-2.5"
+                  >
+                    <div
+                      class="w-[21px] h-[21px] shrink-0 rounded-full bg-accBg text-accL text-[11px] font-bold flex items-center justify-center"
+                    >
+                      3
+                    </div>
+                    <div>
+                      <div class="text-[13px] font-semibold">
+                        粘贴 AI Response
+                      </div>
+                      <div class="text-[11.5px] text-t3 mt-px">
+                        将网页 AI 返回的内容粘贴到这里
+                      </div>
+                    </div>
+                    <button
+                      onclick="loadSample()"
+                      class="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-transparent border border-line2 text-t2 transition-colors hover:bg-s3 hover:text-t1"
+                    >
+                      载入示例
+                    </button>
+                  </div>
+                  <div class="p-4">
+                    <textarea
+                      id="aiResponse"
+                      placeholder="# AI_CHANGE&#10;&#10;## MODIFY&#10;FILE: src/auth/login.ts&#10;```ts&#10;...&#10;```"
+                      class="w-full min-h-[190px] bg-base border border-line rounded-lg px-3.5 py-3 text-t1 font-mono text-[11.5px] leading-[1.65] outline-none resize-y transition-colors focus:border-acc placeholder:text-t3"
+                    ></textarea>
+                    <div class="flex items-center gap-2.5 mt-3">
+                      <button
+                        onclick="parseResponse()"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium bg-acc text-white transition-colors hover:bg-[#7275f3]"
+                      >
+                        <svg
+                          class="w-[13px] h-[13px]"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
+                          <path d="m5 12 5 5L20 7" />
+                        </svg>
+                        Parse Changes
+                      </button>
+                      <span id="parseHint" class="text-[11.5px] text-t3"
+                        >支持 ADD / MODIFY / DELETE 三种指令</span
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ---------- Page: Change Review ---------- -->
+          <section id="page-review" class="page hidden h-full min-h-0">
+            <div class="flex-1 flex min-h-0 overflow-hidden">
+              <!-- changes list -->
+              <div
+                class="w-[300px] shrink-0 border-r border-line bg-s1 flex flex-col min-h-0"
+              >
+                <div class="px-3.5 py-3 border-b border-line">
+                  <div class="text-[12px] font-semibold">3 files changed</div>
+                  <div class="text-[11px] text-t3 mt-0.5">
+                    + 1 added · ~ 1 modified · − 1 deleted
+                  </div>
+                </div>
+                <div
+                  id="changesScroll"
+                  class="flex-1 overflow-y-auto p-2"
+                ></div>
+                <div class="p-2.5 border-t border-line flex flex-col gap-[7px]">
+                  <button
+                    onclick="applyAll()"
+                    class="inline-flex items-center justify-center px-3 py-1.5 rounded-md text-[12px] font-semibold bg-ok text-[#062e21] transition-colors hover:bg-[#4ade80]"
+                  >
+                    Apply All
+                  </button>
+                  <button
+                    onclick="rejectAll()"
+                    class="inline-flex items-center justify-center px-3 py-1.5 rounded-md text-[12px] font-medium bg-transparent border border-[rgba(248,113,113,.35)] text-bad transition-colors hover:bg-badBg hover:border-bad"
+                  >
+                    Reject All
+                  </button>
+                </div>
+              </div>
+
+              <!-- diff -->
+              <div class="flex-1 flex flex-col min-w-0 min-h-0">
+                <div
+                  class="h-[42px] shrink-0 flex items-center gap-2.5 px-3.5 border-b border-line bg-s1"
+                >
+                  <span id="diffFile" class="font-mono text-[12px] text-t1"
+                    >src/auth/login.ts</span
+                  >
+                  <span id="diffStat" class="text-[11px] font-mono text-t3"
+                    ><span class="text-ok">+1</span>
+                    <span class="text-bad">−1</span></span
+                  >
+                  <div class="ml-auto flex gap-[7px]">
+                    <button
+                      onclick="rejectCurrent()"
+                      class="inline-flex items-center px-2.5 py-1 rounded-md text-[11.5px] font-medium bg-transparent border border-[rgba(248,113,113,.35)] text-bad transition-colors hover:bg-badBg hover:border-bad"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      onclick="applyCurrent()"
+                      class="inline-flex items-center px-2.5 py-1 rounded-md text-[11.5px] font-semibold bg-ok text-[#062e21] transition-colors hover:bg-[#4ade80]"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+                <div
+                  id="diffBody"
+                  class="flex-1 overflow-auto bg-base font-mono text-[11.5px] leading-[1.7]"
+                ></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ---------- Page: Settings ---------- -->
+          <section
+            id="page-settings"
+            class="page hidden flex-col h-full min-h-0"
+          >
+            <div class="flex-1 overflow-y-auto px-[30px] pt-[26px] pb-10">
+              <div class="flex flex-col gap-3.5 max-w-[780px]">
+                <div
+                  class="bg-s1 border border-line rounded-[11px] px-4.5 py-4"
+                  style="padding-left: 18px; padding-right: 18px"
+                >
+                  <h3 class="text-[13px] font-semibold mb-0.5">Ignore Rules</h3>
+                  <p class="text-[11.5px] text-t3 mb-3">
+                    被忽略的文件不会进入 Context，也不允许 AI 修改
+                  </p>
+                  <div class="flex flex-col gap-1.5">
+                    <div
+                      class="flex items-center gap-2.5 bg-base border border-line rounded-[7px] px-3 py-2 font-mono text-[11.5px] text-t2"
+                    >
+                      <svg
+                        class="w-3 h-3 shrink-0 text-warn"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <rect x="4" y="10" width="16" height="10" rx="2" />
+                        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                      </svg>
+                      .git/
+                    </div>
+                    <div
+                      class="flex items-center gap-2.5 bg-base border border-line rounded-[7px] px-3 py-2 font-mono text-[11.5px] text-t2"
+                    >
+                      <svg
+                        class="w-3 h-3 shrink-0 text-warn"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <rect x="4" y="10" width="16" height="10" rx="2" />
+                        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                      </svg>
+                      node_modules/
+                    </div>
+                    <div
+                      class="flex items-center gap-2.5 bg-base border border-line rounded-[7px] px-3 py-2 font-mono text-[11.5px] text-t2"
+                    >
+                      <svg
+                        class="w-3 h-3 shrink-0 text-warn"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <rect x="4" y="10" width="16" height="10" rx="2" />
+                        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                      </svg>
+                      dist/ · build/ · coverage/
+                    </div>
+                    <div
+                      class="flex items-center gap-2.5 bg-base border border-line rounded-[7px] px-3 py-2 font-mono text-[11.5px] text-t2"
+                    >
+                      <svg
+                        class="w-3 h-3 shrink-0 text-warn"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <rect x="4" y="10" width="16" height="10" rx="2" />
+                        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                      </svg>
+                      .env · .env.* · *.key · *.pem
+                    </div>
+                    <div
+                      class="flex items-center gap-2.5 bg-base border border-line rounded-[7px] px-3 py-2 font-mono text-[11.5px] text-t2"
+                    >
+                      <svg
+                        class="w-3 h-3 shrink-0 text-warn"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <rect x="4" y="10" width="16" height="10" rx="2" />
+                        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                      </svg>
+                      credentials.* · secrets.*
+                    </div>
+                  </div>
+                  <div class="mt-3 text-[11.5px] text-t3">
+                    项目根目录
+                    <code class="font-mono text-accL">.aiignore</code>
+                    中的规则会追加到此列表
+                  </div>
+                </div>
+
+                <div
+                  class="bg-s1 border border-line rounded-[11px] px-4.5 py-4"
+                  style="padding-left: 18px; padding-right: 18px"
+                >
+                  <h3 class="text-[13px] font-semibold mb-0.5">
+                    AI Response Format
+                  </h3>
+                  <p class="text-[11.5px] text-t3 mb-3">
+                    软件据此解析 AI 返回的修改结果
+                  </p>
+                  <div
+                    class="flex items-center gap-3 py-2.5 border-b border-line"
+                  >
+                    <div>
+                      <div class="text-[12.5px]">启用严格格式校验</div>
+                      <div class="text-[11px] text-t3 mt-px">
+                        格式不符时拒绝应用，避免误改本地文件
+                      </div>
+                    </div>
+                    <div
+                      onclick="
+                        this.classList.toggle('on')
+                        toggleSwitch(this)
+                      "
+                      class="switch on ml-auto w-[34px] h-[19px] shrink-0 rounded-full bg-acc relative cursor-pointer transition-colors"
+                    ></div>
+                  </div>
+                  <div
+                    class="flex items-center gap-3 py-2.5 border-b border-line"
+                  >
+                    <div>
+                      <div class="text-[12.5px]">Apply 前强制 Diff</div>
+                      <div class="text-[11px] text-t3 mt-px">
+                        AI 返回内容不能直接覆盖本地文件
+                      </div>
+                    </div>
+                    <div
+                      onclick="
+                        this.classList.toggle('on')
+                        toggleSwitch(this)
+                      "
+                      class="switch on ml-auto w-[34px] h-[19px] shrink-0 rounded-full bg-acc relative cursor-pointer transition-colors"
+                    ></div>
+                  </div>
+                  <div class="flex items-center gap-3 py-2.5">
+                    <div>
+                      <div class="text-[12.5px]">检测外部文件修改</div>
+                      <div class="text-[11px] text-t3 mt-px">
+                        Context 创建后本地文件被改动时提示冲突
+                      </div>
+                    </div>
+                    <div
+                      onclick="
+                        this.classList.toggle('on')
+                        toggleSwitch(this)
+                      "
+                      class="switch on ml-auto w-[34px] h-[19px] shrink-0 rounded-full bg-acc relative cursor-pointer transition-colors"
+                    ></div>
+                  </div>
+                </div>
+
+                <div
+                  class="bg-s1 border border-line rounded-[11px] px-4.5 py-4"
+                  style="padding-left: 18px; padding-right: 18px"
+                >
+                  <h3 class="text-[13px] font-semibold mb-0.5">
+                    Token Estimation
+                  </h3>
+                  <p class="text-[11.5px] text-t3 mb-3">
+                    估算值仅用于参考，标记为 Estimated
+                  </p>
+                  <div
+                    class="flex items-center gap-3 py-2.5 border-b border-line"
+                  >
+                    <div>
+                      <div class="text-[12.5px]">显示项目总量与 Reduction</div>
+                      <div class="text-[11px] text-t3 mt-px">
+                        对比整个项目规模，显示节省比例
+                      </div>
+                    </div>
+                    <div
+                      onclick="
+                        this.classList.toggle('on')
+                        toggleSwitch(this)
+                      "
+                      class="switch on ml-auto w-[34px] h-[19px] shrink-0 rounded-full bg-acc relative cursor-pointer transition-colors"
+                    ></div>
+                  </div>
+                  <div class="flex items-center gap-3 py-2.5">
+                    <div>
+                      <div class="text-[12.5px]">按 4 字符 ≈ 1 token 估算</div>
+                      <div class="text-[11px] text-t3 mt-px">
+                        适用于英文与代码，中文会略有偏差
+                      </div>
+                    </div>
+                    <div
+                      onclick="
+                        this.classList.toggle('on')
+                        toggleSwitch(this)
+                      "
+                      class="switch on ml-auto w-[34px] h-[19px] shrink-0 rounded-full bg-acc relative cursor-pointer transition-colors"
+                    ></div>
+                  </div>
+                </div>
+
+                <div
+                  class="bg-s1 border border-line rounded-[11px] px-4.5 py-4"
+                  style="padding-left: 18px; padding-right: 18px"
+                >
+                  <h3 class="text-[13px] font-semibold mb-0.5">General</h3>
+                  <p class="text-[11.5px] text-t3 mb-3">界面与行为</p>
+                  <div
+                    class="flex items-center gap-3 py-2.5 border-b border-line"
+                  >
+                    <div class="text-[12.5px]">深色主题</div>
+                    <div
+                      onclick="
+                        this.classList.toggle('on')
+                        toggleSwitch(this)
+                      "
+                      class="switch on ml-auto w-[34px] h-[19px] shrink-0 rounded-full bg-acc relative cursor-pointer transition-colors"
+                    ></div>
+                  </div>
+                  <div class="flex items-center gap-3 py-2.5">
+                    <div class="text-[12.5px]">Apply 后自动创建 Undo 快照</div>
+                    <div
+                      onclick="
+                        this.classList.toggle('on')
+                        toggleSwitch(this)
+                      "
+                      class="switch on ml-auto w-[34px] h-[19px] shrink-0 rounded-full bg-acc relative cursor-pointer transition-colors"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="toastWrap"
+      class="fixed bottom-[22px] left-1/2 -translate-x-1/2 z-[99] flex flex-col gap-2 items-center pointer-events-none"
+    ></div>
+
+    <script>
+      /* ============ Switch dot style (Tailwind-only toggle) ============ */
+      function toggleSwitch(el) {
+        const knob = el.querySelector('.knob')
+        if (el.classList.contains('on')) {
+          el.classList.remove('bg-s4')
+          el.classList.add('bg-acc')
+          knob.classList.remove('translate-x-0', 'bg-[#8b93a3]')
+          knob.classList.add('translate-x-[15px]', 'bg-white')
+        } else {
+          el.classList.remove('bg-acc')
+          el.classList.add('bg-s4')
+          knob.classList.remove('translate-x-[15px]', 'bg-white')
+          knob.classList.add('translate-x-0', 'bg-[#8b93a3]')
+        }
+      }
+      // 初始化所有 switch 的滑块
+      document.querySelectorAll('.switch').forEach(el => {
+        const knob = document.createElement('span')
+        knob.className =
+          'knob absolute w-[15px] h-[15px] rounded-full bg-white top-[2px] left-[2px] translate-x-[15px] transition-transform duration-150'
+        el.appendChild(knob)
+      })
+
+      /* ================= 项目列表 ================= */
+      const PROJECTS = [
+        {
+          name: 'flutter_starter',
+          abbr: 'FS',
+          color: '#3E9C4A',
+          path: '~/code/self-project/flutter/template/flutter_starter',
+        },
+        {
+          name: 'md-tree-generator',
+          abbr: 'MG',
+          color: '#2563EB',
+          path: '~/code/self-project/vscode-plugins/md-tree-generator',
+        },
+        {
+          name: 'demo',
+          abbr: 'D',
+          color: '#7C3AED',
+          path: '~/code/self-project/flutter/study/demo',
+        },
+        {
+          name: 'my_app',
+          abbr: 'MA',
+          color: '#4B5563',
+          path: '~/code/self-project/flutter/my_app',
+        },
+        {
+          name: 'youtube-auto-skip',
+          abbr: 'YS',
+          color: '#EAB308',
+          path: '~/code/self-project/chrome-plugins/youtube-auto-skip',
+        },
+        {
+          name: 'vue3-vben3-customReviewBank',
+          abbr: 'VC',
+          color: '#D97706',
+          path: '~/code/self-project/vue3-vben3-customReviewBank',
+        },
+        {
+          name: 'threejs-runtime',
+          abbr: 'TR',
+          color: '#0D9488',
+          path: '~/code/self-project/threejs-runtime',
+        },
+        {
+          name: 'threejs-dev-learing',
+          abbr: 'TL',
+          color: '#475569',
+          path: '~/code/self-project/threejs-dev-learing',
+        },
+      ]
+      let currentProject = PROJECTS[0]
+
+      /* ================= 项目下拉 ================= */
+      function toggleProjectMenu(e) {
+        e.stopPropagation()
+        const menu = document.getElementById('projectMenu')
+        const caret = document.getElementById('projCaret')
+        const open = menu.classList.contains('pointer-events-none')
+        if (open) {
+          menu.classList.remove('opacity-0', 'scale-95', 'pointer-events-none')
+          caret.classList.add('rotate-180')
+          const s = document.getElementById('pmSearch')
+          s.value = ''
+          renderProjectMenu('')
+          setTimeout(() => s.focus(), 30)
+        } else {
+          closeProjectMenu()
+        }
+      }
+      function closeProjectMenu() {
+        document
+          .getElementById('projectMenu')
+          .classList.add('opacity-0', 'scale-95', 'pointer-events-none')
+        document.getElementById('projCaret').classList.remove('rotate-180')
+      }
+      document.addEventListener('click', () => {
+        if (
+          !document
+            .getElementById('projectMenu')
+            .classList.contains('pointer-events-none')
+        )
+          closeProjectMenu()
+      })
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeProjectMenu()
+      })
+
+      function renderProjectMenu(filter) {
+        const q = (filter || '').trim().toLowerCase()
+        const list = document.getElementById('pmList')
+        const items = PROJECTS.filter(
+          p =>
+            !q ||
+            p.name.toLowerCase().includes(q) ||
+            p.path.toLowerCase().includes(q)
+        )
+
+        if (!items.length) {
+          list.innerHTML =
+            '<div class="py-5 px-3 text-center text-t3 text-[12px]">无匹配项目</div>'
+          return
+        }
+
+        list.innerHTML = items
+          .map(p => {
+            const active = p.name === currentProject.name
+            return `<div onclick="switchProject('${p.name}')"
+      class="flex items-center gap-2.5 px-2.5 py-[7px] rounded-[7px] cursor-pointer select-none transition-colors hover:bg-s3 ${active ? 'bg-accBg' : ''}">
+      <div class="w-[23px] h-[23px] shrink-0 rounded-md flex items-center justify-center text-[10px] font-bold text-white tracking-[.2px]" style="background:${p.color}">${p.abbr}</div>
+      <div class="flex-1 min-w-0">
+        <div class="text-[12.5px] truncate ${active ? 'text-accL font-medium' : 'text-t1'}">${p.name}</div>
+        <div class="text-[10.5px] text-t3 font-mono mt-px truncate">${p.path}</div>
+      </div>
+      ${active ? '<svg class="w-3.5 h-3.5 shrink-0 text-accL" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12 5 5L20 7"/></svg>' : ''}
+    </div>`
+          })
+          .join('')
+      }
+
+      function switchProject(name) {
+        const p = PROJECTS.find(x => x.name === name)
+        if (!p) return
+        currentProject = p
+        document.getElementById('curName').textContent = p.name
+        const av = document.getElementById('curAvatar')
+        av.textContent = p.abbr
+        av.style.background = p.color
+        document.getElementById('sideProj').textContent = p.name
+        document.getElementById('sidePath').textContent = p.path
+        closeProjectMenu()
+        switchPage('context')
+        toast('已切换到 ' + p.name)
+      }
+
+      function openNewProject() {
+        closeProjectMenu()
+        toast('打开文件夹…（选择本地项目目录）')
+      }
+
+      /* ================= 文件树 ================= */
+      const ICONS = {
+        dir: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>',
+        file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5"/></svg>',
+      }
+      function iconColor(name) {
+        if (name.endsWith('.ts')) return 'text-[#4b9cf5]'
+        if (name.endsWith('.tsx')) return 'text-[#5ecfe8]'
+        if (name.endsWith('.json')) return 'text-[#e8c05e]'
+        if (name.endsWith('.md')) return 'text-t2'
+        return 'text-[#4b9cf5]'
+      }
+      const INDENT = [
+        'pl-1.5',
+        'pl-[19px]',
+        'pl-[32px]',
+        'pl-[45px]',
+        'pl-[58px]',
+      ]
+
+      const TREE = {
+        name: 'my-app',
+        type: 'dir',
+        path: '',
+        children: [
+          {
+            name: 'src',
+            type: 'dir',
+            path: 'src',
+            children: [
+              {
+                name: 'auth',
+                type: 'dir',
+                path: 'src/auth',
+                children: [
+                  {
+                    name: 'login.ts',
+                    type: 'file',
+                    path: 'src/auth/login.ts',
+                    chars: 12480,
+                    content: `import { api } from '../services/api';
+import { setSession } from './session';
+
+export interface LoginPayload {
+  username: string;
+  password: string;
+}
+
+export async function login(payload: LoginPayload) {
+  try {
+    const res = await api.post('/auth/login', payload);
+    if (!res.ok) {
+      throw new Error('Login failed');
+    }
+    setSession(res.data.token);
+    return res.data;
+  } catch (err) {
+    return { error: 'Login failed' };
+  }
+}`,
+                  },
+                  {
+                    name: 'session.ts',
+                    type: 'file',
+                    path: 'src/auth/session.ts',
+                    chars: 8640,
+                    content: `const SESSION_KEY = 'app.session';
+
+export function setSession(token: string) {
+  localStorage.setItem(SESSION_KEY, token);
+}
+
+export function getSession(): string | null {
+  return localStorage.getItem(SESSION_KEY);
+}
+
+export function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+}`,
+                  },
+                  {
+                    name: 'token.ts',
+                    type: 'file',
+                    path: 'src/auth/token.ts',
+                    chars: 4920,
+                    content: `export function decodeToken(token: string) {
+  const payload = token.split('.')[1];
+  return JSON.parse(atob(payload));
+}
+
+export function isExpired(token: string) {
+  const { exp } = decodeToken(token);
+  return Date.now() >= exp * 1000;
+}`,
+                  },
+                ],
+              },
+              {
+                name: 'components',
+                type: 'dir',
+                path: 'src/components',
+                children: [
+                  {
+                    name: 'Button.tsx',
+                    type: 'file',
+                    path: 'src/components/Button.tsx',
+                    chars: 6480,
+                    content: '// Button component',
+                  },
+                  {
+                    name: 'Modal.tsx',
+                    type: 'file',
+                    path: 'src/components/Modal.tsx',
+                    chars: 9200,
+                    content: '// Modal component',
+                  },
+                ],
+              },
+              {
+                name: 'services',
+                type: 'dir',
+                path: 'src/services',
+                children: [
+                  {
+                    name: 'api.ts',
+                    type: 'file',
+                    path: 'src/services/api.ts',
+                    chars: 16400,
+                    content: '// api client',
+                  },
+                ],
+              },
+              {
+                name: 'index.ts',
+                type: 'file',
+                path: 'src/index.ts',
+                chars: 1840,
+                content: '// entry',
+              },
+            ],
+          },
+          {
+            name: 'package.json',
+            type: 'file',
+            path: 'package.json',
+            chars: 1360,
+            content: '{ "name": "my-app" }',
+          },
+          {
+            name: 'README.md',
+            type: 'file',
+            path: 'README.md',
+            chars: 3000,
+            content: '# my-app',
+          },
+        ],
+      }
+
+      const state = {
+        selected: new Set(['src/auth/login.ts', 'src/auth/session.ts']),
+        expanded: new Set(['src', 'src/auth']),
+        search: '',
+        page: 'context',
+      }
+
+      function allFiles(node, acc = []) {
+        if (node.type === 'file') {
+          acc.push(node)
+          return acc
+        }
+        ;(node.children || []).forEach(c => allFiles(c, acc))
+        return acc
+      }
+      function findNode(node, path) {
+        if (node.path === path) return node
+        for (const c of node.children || []) {
+          const r = findNode(c, path)
+          if (r) return r
+        }
+        return null
+      }
+      function descendants(node, acc = []) {
+        if (node.type === 'file') {
+          acc.push(node.path)
+          return acc
+        }
+        ;(node.children || []).forEach(c => descendants(c, acc))
+        return acc
+      }
+      const ALL_FILES = allFiles(TREE)
+      const TOTAL_CHARS = ALL_FILES.reduce((s, f) => s + f.chars, 0)
+
+      function matchesSearch(node, q) {
+        if (!q) return true
+        if (node.name.toLowerCase().includes(q)) return true
+        return (node.children || []).some(c => matchesSearch(c, q))
+      }
+
+      function renderNode(node, depth) {
+        if (!matchesSearch(node, state.search)) return ''
+        const isDir = node.type === 'dir'
+        const expanded = state.expanded.has(node.path)
+        const pad = INDENT[Math.min(depth, INDENT.length - 1)]
+        const files = isDir ? descendants(node) : [node.path]
+        const selCount = files.filter(p => state.selected.has(p)).length
+        const allSel = selCount === files.length && files.length > 0
+        const indet = selCount > 0 && !allSel
+
+        const boxCls =
+          allSel || indet ? 'bg-acc border-acc' : 'bg-s2 border-line2'
+        const mark = allSel
+          ? '<span class="w-[3.5px] h-[7px] border-solid border-white border-0 border-r-[1.8px] border-b-[1.8px] rotate-[42deg] -translate-y-px"></span>'
+          : indet
+            ? '<span class="w-[7px] h-[1.8px] bg-white rounded-[1px]"></span>'
+            : ''
+
+        let html = `<div data-path="${node.path}" data-type="${node.type}"
+    class="tree-row group flex items-center gap-1.5 pr-1.5 py-[3px] rounded-[5px] cursor-pointer select-none text-[12.5px] transition-colors hover:bg-s3 ${pad}">
+    <span class="tree-twisty w-3.5 shrink-0 text-t3 text-[9px] text-center leading-none transition-transform ${isDir && expanded ? 'rotate-90' : ''} ${isDir ? '' : 'invisible'}">▸</span>
+    <span class="w-3.5 h-3.5 shrink-0 rounded-[4px] border-[1.5px] flex items-center justify-center transition-all ${boxCls}">${mark}</span>
+    <span class="w-3.5 shrink-0 flex items-center justify-center ${isDir ? 'text-[#7c8aff]' : iconColor(node.name)}">
+      <span class="w-[13px] h-[13px] block">${isDir ? ICONS.dir : ICONS.file}</span>
+    </span>
+    <span class="truncate ${selCount > 0 ? 'text-t1' : 'text-t2'}">${node.name}</span>
+  </div>`
+
+        if (isDir && expanded) {
+          for (const c of node.children) html += renderNode(c, depth + 1)
+        }
+        return html
+      }
+
+      function renderTree() {
+        const wrap = document.getElementById('treeWrap')
+        let html = ''
+        for (const c of TREE.children) html += renderNode(c, 0)
+        wrap.innerHTML = html
+        document.getElementById('treeCount').textContent =
+          ALL_FILES.length + ' files'
+
+        wrap.querySelectorAll('.tree-row').forEach(row => {
+          row.addEventListener('click', e => {
+            const path = row.dataset.path
+            const type = row.dataset.type
+            const node = findNode(TREE, path)
+            if (!node) return
+
+            if (e.target.classList.contains('tree-twisty') && type === 'dir') {
+              if (state.expanded.has(path)) state.expanded.delete(path)
+              else state.expanded.add(path)
+              renderTree()
+              updateStats()
+              return
+            }
+            const files = type === 'dir' ? descendants(node) : [path]
+            const allSel = files.every(p => state.selected.has(p))
+            files.forEach(p =>
+              allSel ? state.selected.delete(p) : state.selected.add(p)
+            )
+            renderTree()
+            updateStats()
+          })
+        })
+      }
+
+      /* ================= 预览与统计 ================= */
+      function structText(node, prefix = '', isRoot = true) {
+        let out = ''
+        if (isRoot) out += node.name + '/\n'
+        const kids = node.children || []
+        kids.forEach((c, i) => {
+          const last = i === kids.length - 1
+          out +=
+            prefix +
+            (last ? '└── ' : '├── ') +
+            c.name +
+            (c.type === 'dir' ? '/' : '') +
+            '\n'
+          if (c.type === 'dir')
+            out += structText(c, prefix + (last ? '    ' : '│   '), false)
+        })
+        return out
+      }
+
+      function selectedFiles() {
+        return ALL_FILES.filter(f => state.selected.has(f.path))
+      }
+
+      let previewMode = 'selected'
+
+      function buildPreview() {
+        if (previewMode === 'structure')
+          return '## 项目结构\n\n' + structText(TREE)
+        const files = previewMode === 'all' ? ALL_FILES : selectedFiles()
+        let out = '## 项目结构\n\n' + structText(TREE) + '\n## 文件内容\n'
+        files.forEach(f => {
+          out += `\n### FILE: ${f.path}\n\`\`\`ts\n${f.content}\n\`\`\`\n`
+        })
+        return out
+      }
+
+      function updateStats() {
+        const sel = selectedFiles()
+        const chars = sel.reduce((s, f) => s + f.chars, 0)
+        const tokens = Math.round(chars / 4)
+        const totalTokens = Math.round(TOTAL_CHARS / 4)
+
+        document.getElementById('statFiles').textContent = sel.length
+        document.getElementById('statChars').textContent =
+          chars.toLocaleString()
+        document.getElementById('statTokens').textContent =
+          '~' + tokens.toLocaleString()
+        document.getElementById('statTotal').textContent =
+          '~' + totalTokens.toLocaleString()
+
+        const red = totalTokens ? (1 - tokens / totalTokens) * 100 : 0
+        document.getElementById('statReduction').textContent =
+          red.toFixed(1) + '%'
+        document.getElementById('selPill').textContent =
+          sel.length + ' files selected'
+        document.getElementById('previewBox').textContent = buildPreview()
+      }
+
+      function onSearch(v) {
+        state.search = v.trim().toLowerCase()
+        renderTree()
+      }
+
+      function selectAll(on) {
+        state.selected.clear()
+        if (on) ALL_FILES.forEach(f => state.selected.add(f.path))
+        renderTree()
+        updateStats()
+      }
+
+      /* ================= 复制 ================= */
+      const AI_PROMPT = `# 角色
+
+你是一个代码修改助手。你会收到一个项目的部分上下文，以及一个修改需求。
+
+# 规则
+
+1. 只修改与需求相关的文件。
+2. 严格按下面的格式返回结果，不要输出任何额外解释。
+3. 不要使用 Markdown 表格、编号列表或额外章节。
+
+# 返回格式
+
+\`\`\`
+# AI_CHANGE
+
+## ADD
+FILE: src/auth/oauth.ts
+\`\`\`ts
+<完整文件内容>
+\`\`\`
+
+## MODIFY
+FILE: src/auth/login.ts
+\`\`\`ts
+<完整文件内容>
+\`\`\`
+
+## DELETE
+FILE: src/auth/old.ts
+\`\`\`
+`
+
+      function copyCtx(mode) {
+        let text = ''
+        if (mode === 'structure') {
+          previewMode = 'structure'
+          text = '## 项目结构\n\n' + structText(TREE)
+          document.getElementById('previewMeta').textContent = 'Structure Only'
+        } else if (mode === 'all') {
+          previewMode = 'all'
+          text = buildPreview()
+          document.getElementById('previewMeta').textContent =
+            'Structure + All Contents'
+        } else if (mode === 'prompt') {
+          text = AI_PROMPT
+        } else {
+          previewMode = 'selected'
+          text = buildPreview()
+          document.getElementById('previewMeta').textContent =
+            'Structure + Selected Contents'
+        }
+        if (mode !== 'prompt')
+          document.getElementById('previewBox').textContent = buildPreview()
+
+        navigator.clipboard?.writeText(text).catch(() => {})
+        toast(
+          {
+            structure: '已复制项目结构',
+            selected: '已复制 Structure + Selected Contents',
+            all: '已复制 Structure + All Contents',
+            prompt: '已复制 AI 指令',
+          }[mode]
+        )
+      }
+
+      /* ================= 示例响应 ================= */
+      const SAMPLE_RESPONSE = `# AI_CHANGE
+
+## ADD
+FILE: src/auth/oauth.ts
+\`\`\`ts
+import { api } from '../services/api';
+import { setSession } from './session';
+
+export async function loginWithOAuth(provider: string, code: string) {
+  const res = await api.post('/auth/oauth/' + provider, { code });
+  if (!res.ok) {
+    throw new Error('OAuth login failed');
+  }
+  setSession(res.data.token);
+  return res.data;
+}
+\`\`\`
+
+## MODIFY
+FILE: src/auth/login.ts
+\`\`\`ts
+import { api } from '../services/api';
+import { setSession } from './session';
+
+export interface LoginPayload {
+  username: string;
+  password: string;
+}
+
+export async function login(payload: LoginPayload) {
+  try {
+    const res = await api.post('/auth/login', payload);
+    if (!res.ok) {
+      throw new Error('Username or password is incorrect');
+    }
+    setSession(res.data.token);
+    return res.data;
+  } catch (err) {
+    return { error: 'Username or password is incorrect' };
+  }
+}
+\`\`\`
+
+## DELETE
+FILE: src/auth/old.ts
+\`\`\`
+`
+
+      function loadSample() {
+        document.getElementById('aiResponse').value = SAMPLE_RESPONSE
+        toast('已载入示例响应')
+      }
+
+      /* ================= 解析 ================= */
+      function parseResponse() {
+        const raw = document.getElementById('aiResponse').value.trim()
+        const hint = document.getElementById('parseHint')
+        if (!raw) {
+          toast('请先粘贴 AI 返回内容', true)
+          return
+        }
+
+        if (
+          !raw.includes('ADD') &&
+          !raw.includes('MODIFY') &&
+          !raw.includes('DELETE')
+        ) {
+          hint.textContent =
+            'Unable to parse response. Please ask AI to return changes using the required format.'
+          hint.className = 'text-[11.5px] text-bad'
+          toast('解析失败：格式不匹配', true)
+          return
+        }
+        hint.textContent = '解析成功 · 识别到 3 个变更'
+        hint.className = 'text-[11.5px] text-ok'
+        document.getElementById('step1').className =
+          'w-[21px] h-[21px] shrink-0 rounded-full bg-okBg text-ok text-[11px] font-bold flex items-center justify-center'
+        buildChanges()
+        toast('解析成功，已生成 3 个变更')
+        setTimeout(() => switchPage('review'), 350)
+      }
+
+      /* ================= Changes / Diff ================= */
+      const CHANGES = [
+        {
+          type: 'add',
+          path: 'src/auth/oauth.ts',
+          status: 'pending',
+          oldContent: null,
+          newContent: `import { api } from '../services/api';
+import { setSession } from './session';
+
+export async function loginWithOAuth(provider: string, code: string) {
+  const res = await api.post('/auth/oauth/' + provider, { code });
+  if (!res.ok) {
+    throw new Error('OAuth login failed');
+  }
+  setSession(res.data.token);
+  return res.data;
+}`,
+        },
+        {
+          type: 'modify',
+          path: 'src/auth/login.ts',
+          status: 'pending',
+          oldContent: `import { api } from '../services/api';
+import { setSession } from './session';
+
+export interface LoginPayload {
+  username: string;
+  password: string;
+}
+
+export async function login(payload: LoginPayload) {
+  try {
+    const res = await api.post('/auth/login', payload);
+    if (!res.ok) {
+      throw new Error('Login failed');
+    }
+    setSession(res.data.token);
+    return res.data;
+  } catch (err) {
+    return { error: 'Login failed' };
+  }
+}`,
+          newContent: `import { api } from '../services/api';
+import { setSession } from './session';
+
+export interface LoginPayload {
+  username: string;
+  password: string;
+}
+
+export async function login(payload: LoginPayload) {
+  try {
+    const res = await api.post('/auth/login', payload);
+    if (!res.ok) {
+      throw new Error('Username or password is incorrect');
+    }
+    setSession(res.data.token);
+    return res.data;
+  } catch (err) {
+    return { error: 'Username or password is incorrect' };
+  }
+}`,
+        },
+        {
+          type: 'delete',
+          path: 'src/auth/old.ts',
+          status: 'pending',
+          oldContent:
+            '// legacy auth helper\nexport function legacyLogin() {}\n',
+          newContent: null,
+        },
+      ]
+
+      let currentChange = 1
+      const SYM = { add: '+', modify: '~', delete: '−' }
+      const SYMCLS = {
+        add: 'bg-okBg text-ok',
+        modify: 'bg-warnBg text-warn',
+        delete: 'bg-badBg text-bad',
+      }
+
+      function buildChanges() {
+        const wrap = document.getElementById('changesScroll')
+        wrap.innerHTML = CHANGES.map((c, i) => {
+          const active = i === currentChange
+          const st =
+            c.status === 'applied'
+              ? 'text-ok'
+              : c.status === 'rejected'
+                ? 'text-bad'
+                : 'text-t3'
+          return `<div onclick="selectChange(${i})" data-i="${i}"
+      class="change-item flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg cursor-pointer transition-colors border ${active ? 'bg-s3 border-line2' : 'border-transparent hover:bg-s2'}">
+      <span class="w-[18px] h-[18px] shrink-0 rounded-[5px] text-[12px] font-bold font-mono flex items-center justify-center ${SYMCLS[c.type]}">${SYM[c.type]}</span>
+      <span class="flex-1 min-w-0 font-mono text-[11.5px] truncate ${active ? 'text-t1' : 'text-t2'}">${c.path}</span>
+      <span class="text-[10px] shrink-0 ${st}">${c.status === 'pending' ? '' : c.status}</span>
+    </div>`
+        }).join('')
+        renderDiff()
+      }
+
+      function selectChange(i) {
+        currentChange = i
+        buildChanges()
+      }
+
+      function escapeHtml(s) {
+        return s
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+      }
+
+      function renderDiff() {
+        const c = CHANGES[currentChange]
+        document.getElementById('diffFile').textContent = c.path
+
+        const body = document.getElementById('diffBody')
+        const lines = []
+
+        if (c.type === 'add') {
+          const n = c.newContent.split('\n').length
+          document.getElementById('diffStat').innerHTML =
+            `<span class="text-ok">+${n}</span>`
+          lines.push({ cls: 'hunk', txt: `@@ -0,0 +1,${n} @@` })
+          c.newContent
+            .split('\n')
+            .forEach((l, i) =>
+              lines.push({ cls: 'add', ln: i + 1, txt: '+' + l })
+            )
+        } else if (c.type === 'delete') {
+          const n = c.oldContent.split('\n').length
+          document.getElementById('diffStat').innerHTML =
+            `<span class="text-bad">−${n}</span>`
+          lines.push({ cls: 'hunk', txt: `@@ -1,${n} +0,0 @@` })
+          c.oldContent
+            .split('\n')
+            .forEach((l, i) =>
+              lines.push({ cls: 'del', ln: i + 1, txt: '-' + l })
+            )
+        } else {
+          const oldL = c.oldContent.split('\n')
+          const newL = c.newContent.split('\n')
+          document.getElementById('diffStat').innerHTML =
+            '<span class="text-ok">+2</span> <span class="text-bad">−2</span>'
+          lines.push({
+            cls: 'hunk',
+            txt: '@@ -11,7 +11,7 @@ export async function login(payload: LoginPayload) {',
+          })
+          oldL.forEach((l, i) => {
+            const nl = newL[i]
+            if (l === nl) {
+              lines.push({ cls: '', ln: i + 1, txt: ' ' + l })
+            } else {
+              lines.push({ cls: 'del', ln: i + 1, txt: '-' + l })
+              if (nl !== undefined)
+                lines.push({ cls: 'add', ln: i + 1, txt: '+' + nl })
+            }
+          })
+        }
+
+        const ROW = {
+          add: 'bg-[rgba(52,211,153,.09)]',
+          del: 'bg-[rgba(248,113,113,.09)]',
+          hunk: 'bg-s1',
+          '': '',
+        }
+        const TXT = {
+          add: 'text-[#8ee7c2]',
+          del: 'text-[#f4a3a3]',
+          hunk: 'text-accL opacity-80',
+          '': 'text-[#b9c2d0]',
+        }
+
+        body.innerHTML = lines
+          .map(
+            l =>
+              `<div class="flex px-3.5 whitespace-pre min-h-[19px] ${ROW[l.cls]}">
+       <span class="w-[34px] shrink-0 text-t3 text-right pr-3 select-none opacity-60">${l.ln || ''}</span>
+       <span class="flex-1 whitespace-pre ${TXT[l.cls]}">${escapeHtml(l.txt)}</span>
+     </div>`
+          )
+          .join('')
+      }
+
+      function applyCurrent() {
+        CHANGES[currentChange].status = 'applied'
+        buildChanges()
+        updateBadge()
+        toast('已应用 ' + CHANGES[currentChange].path)
+      }
+      function rejectCurrent() {
+        CHANGES[currentChange].status = 'rejected'
+        buildChanges()
+        updateBadge()
+        toast('已拒绝 ' + CHANGES[currentChange].path)
+      }
+      function applyAll() {
+        CHANGES.forEach(c => {
+          if (c.status === 'pending') c.status = 'applied'
+        })
+        buildChanges()
+        updateBadge()
+        toast('Apply All 完成 · 可撤销')
+      }
+      function rejectAll() {
+        CHANGES.forEach(c => {
+          if (c.status === 'pending') c.status = 'rejected'
+        })
+        buildChanges()
+        updateBadge()
+        toast('已拒绝全部变更')
+      }
+
+      function updateBadge() {
+        const n = CHANGES.filter(c => c.status === 'pending').length
+        const b = document.getElementById('changeBadge')
+        b.textContent = n
+        b.className = n
+          ? 'ml-auto bg-warnBg text-warn text-[10px] font-semibold px-1.5 py-px rounded-[9px]'
+          : 'hidden'
+      }
+
+      /* ================= Toast ================= */
+      function toast(msg, isError) {
+        const wrap = document.getElementById('toastWrap')
+        const el = document.createElement('div')
+        el.className =
+          'bg-s4 border border-line2 text-t1 px-4 py-2.5 rounded-[9px] text-[12.5px] flex items-center gap-2.5 shadow-[0_8px_28px_rgba(0,0,0,.5)] transition-opacity duration-200 opacity-100'
+        el.innerHTML =
+          (isError
+            ? '<svg class="w-[15px] h-[15px] text-bad" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>'
+            : '<svg class="w-[15px] h-[15px] text-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 5 5L20 7"/></svg>') +
+          '<span>' +
+          msg +
+          '</span>'
+        wrap.appendChild(el)
+        setTimeout(() => {
+          el.classList.add('opacity-0')
+          setTimeout(() => el.remove(), 220)
+        }, 1900)
+      }
+
+      /* ================= 导航 ================= */
+      const PAGE_META = {
+        context: 'Context Builder',
+        exchange: 'AI Exchange',
+        review: 'Change Review',
+        settings: 'Settings',
+      }
+
+      const NAV_BASE =
+        'nav-item flex items-center gap-2.5 px-2.5 py-2 rounded-[7px] text-[12.5px] text-t2 cursor-pointer select-none transition-colors hover:bg-s3 hover:text-t1'
+      const NAV_ACTIVE = ' bg-accBg text-accL font-medium'
+
+      function switchPage(name) {
+        state.page = name
+        document.querySelectorAll('.nav-item').forEach(el => {
+          el.className = NAV_BASE + (el.dataset.page === name ? NAV_ACTIVE : '')
+        })
+        document.querySelectorAll('.page').forEach(el => {
+          const on = el.id === 'page-' + name
+          el.classList.toggle('hidden', !on)
+          el.classList.toggle('flex', on)
+        })
+        document.getElementById('pageTitle').textContent = PAGE_META[name]
+      }
+
+      document.querySelectorAll('.nav-item').forEach(el => {
+        el.addEventListener('click', () => switchPage(el.dataset.page))
+      })
+
+      /* ================= 初始化 ================= */
+      renderTree()
+      updateStats()
+      buildChanges()
+      updateBadge()
+      renderProjectMenu('')
+      document.getElementById('promptBox').textContent = AI_PROMPT
+      switchPage('context')
+    </script>
+  </body>
+</html>

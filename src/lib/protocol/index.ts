@@ -11,6 +11,15 @@ export {
   isSafeRelativePath,
   changesToApplyInputs,
 } from './schema'
+export {
+  DEFAULT_CHARS_PER_TOKEN,
+  normalizeCharsPerToken,
+  estimateTokensFromChars,
+  estimateContextTokens,
+  estimateProjectTokens,
+  reductionPercent,
+  type TokenEstimate,
+} from './token-estimate'
 
 import type { ProjectContext } from './types'
 import {

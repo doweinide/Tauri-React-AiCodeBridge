@@ -151,7 +151,7 @@
   "context.characters": "字符数",
   "context.estimatedTokens": "估算 Tokens",
   "context.projectTotal": "项目总量",
-  "context.tokenHint": "估算值 · 字符数 / 4",
+  "context.tokenHint": "按复制载荷估算 · 字符数 / N",
   "context.tokenReduction": "Token\n节省率",
   "context.structureInclude": "结构包含",
   "context.contentInclude": "内容包含",
@@ -228,5 +228,11 @@
   "settings.general.dark": "深色主题",
   "settings.general.darkDesc": "跟随系统偏好设置",
   "settings.general.undo": "Apply 后自动创建 Undo 快照",
-  "settings.general.undoDesc": "支持撤销最近一次 Change Set"
+  "settings.general.undoDesc": "支持撤销最近一次 Change Set",
+  "context.payloadHint": "复制载荷字符数（含 AI 指令 + 结构 JSON）",
+  "settings.token.charsPerToken": "每 Token 字符数",
+  "settings.token.charsPerTokenDesc": "用于估算 Token：载荷字符数 ÷ 该值（默认 4）",
+  "settings.token.charsPerTokenPlaceholder": "例如 4",
+  "settings.token.payloadBased": "按复制载荷计算 Token",
+  "settings.token.payloadBasedDesc": "统计 AI 指令 + ProjectContext JSON 的实际大小"
 }

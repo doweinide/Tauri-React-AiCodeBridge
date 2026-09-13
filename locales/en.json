@@ -151,7 +151,7 @@
   "context.characters": "Characters",
   "context.estimatedTokens": "Estimated Tokens",
   "context.projectTotal": "Project Total",
-  "context.tokenHint": "Estimate · chars / 4",
+  "context.tokenHint": "Estimated from copy payload · chars / N",
   "context.tokenReduction": "Token\nReduction",
   "context.structureInclude": "Include in structure",
   "context.contentInclude": "Include content",
@@ -228,5 +228,11 @@
   "settings.general.dark": "Dark theme",
   "settings.general.darkDesc": "Follow system preference",
   "settings.general.undo": "Create Undo snapshot after Apply",
-  "settings.general.undoDesc": "Allow undoing the latest Change Set"
+  "settings.general.undoDesc": "Allow undoing the latest Change Set",
+  "context.payloadHint": "Copy payload chars (AI instruction + structure JSON)",
+  "settings.token.charsPerToken": "Chars per Token",
+  "settings.token.charsPerTokenDesc": "Token estimate = payload chars ÷ this value (default 4)",
+  "settings.token.charsPerTokenPlaceholder": "e.g. 4",
+  "settings.token.payloadBased": "Estimate Token from copy payload",
+  "settings.token.payloadBasedDesc": "Count actual AI instruction + ProjectContext JSON size"
 }

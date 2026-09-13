@@ -12,6 +12,13 @@ import type {
   ProjectNode,
 } from '@/lib/tauri/tauri-bindings'
 import type { ProjectContext } from '@/lib/protocol'
+import {
+  estimateContextTokens,
+  estimateProjectTokens,
+  reductionPercent,
+  type TokenEstimate,
+} from '@/lib/protocol'
+import { useAppSettingsStore } from '@/store/app-settings-store'
 import { collectFilePaths } from '@/features/project/project-store'
 
 export type PreviewTab = 'tree' | 'json' | 'raw'
@@ -31,6 +38,10 @@ interface ContextState {
   lastError: string | null
   fileHashes: Record<string, string>
   selectedFileForCode: string | null
+  /** Payload-based token stats (copy payload includes instruction + structure JSON) */
+  tokenStats: TokenEstimate | null
+  projectTokens: number
+  reductionPercent: number
 
   toggleExpand: (path: string) => void
   setSearch: (q: string) => void
@@ -70,6 +81,9 @@ export const useContextStore = create<ContextState>()(
       lastError: null,
       fileHashes: {},
       selectedFileForCode: null,
+      tokenStats: null,
+      projectTokens: 0,
+      reductionPercent: 0,
 
       toggleExpand: path =>
         set(
@@ -202,6 +216,14 @@ export const useContextStore = create<ContextState>()(
           const previewText = contextJsonText(protocolContext)
           const fileHashes: Record<string, string> = {}
           for (const f of buildResult.files) fileHashes[f.path] = f.hash
+
+          const charsPerToken = useAppSettingsStore.getState().charsPerToken
+          const tokenStats = estimateContextTokens(protocolContext, charsPerToken)
+          const projectTokens = estimateProjectTokens(
+            buildResult.projectTotalBytes,
+            charsPerToken
+          )
+
           set(
             {
               buildResult,
@@ -209,6 +231,12 @@ export const useContextStore = create<ContextState>()(
               previewText,
               building: false,
               fileHashes,
+              tokenStats,
+              projectTokens,
+              reductionPercent: reductionPercent(
+                tokenStats.estimatedTokens,
+                projectTokens
+              ),
             },
             undefined,
             'refresh/ok'
@@ -246,6 +274,9 @@ export const useContextStore = create<ContextState>()(
             previewText: '',
             fileHashes: {},
             selectedFileForCode: null,
+            tokenStats: null,
+            projectTokens: 0,
+            reductionPercent: 0,
           },
           undefined,
           'reset'

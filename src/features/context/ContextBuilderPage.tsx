@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   CheckCheck,
@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils'
 import { CodeViewer, JsonTreeView } from '@/components/code'
 import { useProjectStore } from '@/features/project/project-store'
+import { useAppSettingsStore } from '@/store/app-settings-store'
 import { FileTree, useFileCount } from './FileTree'
 import { formatNumber, useContextStore, type PreviewTab } from './context-store'
 
@@ -92,16 +93,33 @@ export function ContextBuilderPage() {
   const selectedFileForCode = useContextStore(s => s.selectedFileForCode)
   const setSelectedFileForCode = useContextStore(s => s.setSelectedFileForCode)
   const fileCount = useFileCount(project?.tree ?? null)
+  const tokenStats = useContextStore(s => s.tokenStats)
+  const projectTokens = useContextStore(s => s.projectTokens)
+  const reduction = useContextStore(s => s.reductionPercent)
+  const charsPerToken = useAppSettingsStore(s => s.charsPerToken)
   const [copied, setCopied] = useState(false)
+  const lastRootRef = useRef<string | null>(null)
 
   useEffect(() => {
+    // Only reset when switching to a different project, not on every remount
+    // (remount happens when navigating Settings → Context, which would wipe selection)
+    const root = project?.rootPath
+    if (!root) return
+    if (lastRootRef.current === root) return
+    lastRootRef.current = root
     reset()
   }, [project?.rootPath, reset])
 
   useEffect(() => {
     if (!project) return
     void refreshPreview(project.rootPath)
-  }, [project, structureSelected, contentSelected, refreshPreview])
+  }, [
+    project,
+    structureSelected,
+    contentSelected,
+    refreshPreview,
+    charsPerToken,
+  ])
 
   const codeFile = useMemo(() => {
     if (!selectedFileForCode || !buildResult) return null
@@ -338,22 +356,23 @@ export function ContextBuilderPage() {
         />
         <Stat
           label={t('context.characters')}
-          value={formatNumber(buildResult?.totalChars ?? 0)}
+          value={formatNumber(tokenStats?.payloadChars ?? 0)}
+          hint={t('context.payloadHint')}
         />
         <Stat
           label={t('context.estimatedTokens')}
-          value={`~${formatNumber(buildResult?.estimatedTokens ?? 0)}`}
+          value={`~${formatNumber(tokenStats?.estimatedTokens ?? 0)}`}
           accent
           hint={t('context.tokenHint')}
         />
         <Stat
           label={t('context.projectTotal')}
-          value={`~${formatNumber(buildResult?.projectTotalTokens ?? 0)}`}
+          value={`~${formatNumber(projectTokens)}`}
           muted
         />
         <div className="ml-auto flex items-center gap-2.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5">
           <div className="font-mono text-[15px] font-bold text-emerald-500">
-            {(buildResult?.reductionPercent ?? 0).toFixed(1)}%
+            {reduction.toFixed(1)}%
           </div>
           <div className="text-[10.5px] leading-[1.3] text-emerald-400">
             {t('context.tokenReduction')}

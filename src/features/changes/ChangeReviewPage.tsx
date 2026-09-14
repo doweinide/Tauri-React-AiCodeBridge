@@ -1,7 +1,13 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Undo2 } from 'lucide-react'
+import { List, Network, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   ResizableHandle,
   ResizablePanel,
@@ -15,6 +21,7 @@ import {
   pendingCount,
   type ReviewChange,
 } from './changes-store'
+import { ChangesTreeView } from './ChangesTreeView'
 
 const SYM: Record<ReviewChange['type'], string> = {
   add: '+',
@@ -53,6 +60,7 @@ export function ChangeReviewPage() {
   const dismissConflict = useChangesStore(s => s.dismissConflict)
   const applySummary = useChangesStore(s => s.applySummary)
   const dismissSummary = useChangesStore(s => s.dismissSummary)
+  const [listView, setListView] = useState<'flat' | 'tree'>('flat')
 
   const active = changes.find(c => c.id === activeId) ?? changes[0]
   const added = changes.filter(c => c.type === 'add').length
@@ -87,54 +95,115 @@ export function ChangeReviewPage() {
       >
         <div className="flex h-full min-h-0 min-w-0 flex-col border-r bg-background/40">
           <div className="shrink-0 border-b px-3.5 py-3">
-            <div className="text-[12px] font-semibold">
-              {t('review.filesChanged', { count: changes.length })}
-            </div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">
-              {t('review.summary', { added, modified, deleted })}
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-[12px] font-semibold">
+                  {t('review.filesChanged', { count: changes.length })}
+                </div>
+                <div className="mt-0.5 text-[11px] text-muted-foreground">
+                  {t('review.summary', { added, modified, deleted })}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-0.5 rounded-md border bg-background/60 p-0.5">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        'h-6 w-6',
+                        listView === 'flat'
+                          ? 'bg-muted text-foreground'
+                          : 'text-muted-foreground'
+                      )}
+                      onClick={() => setListView('flat')}
+                    >
+                      <List className="h-3.5 w-3.5" />
+                      <span className="sr-only">{t('review.viewList')}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-[11px]">
+                    {t('review.viewList')}
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        'h-6 w-6',
+                        listView === 'tree'
+                          ? 'bg-muted text-foreground'
+                          : 'text-muted-foreground'
+                      )}
+                      onClick={() => setListView('tree')}
+                    >
+                      <Network className="h-3.5 w-3.5" />
+                      <span className="sr-only">{t('review.viewTree')}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-[11px]">
+                    {t('review.viewTree')}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-2">
-            {changes.map(c => {
-              const isActive = c.id === active?.id
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => selectChange(c.id)}
-                  className={cn(
-                    'flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2.5 text-left transition-colors',
-                    isActive
-                      ? 'border-border bg-muted'
-                      : 'border-transparent hover:bg-muted/50'
-                  )}
-                >
-                  <span
+            {listView === 'tree' ? (
+              <ChangesTreeView
+                changes={changes}
+                activeId={active?.id ?? null}
+                onSelect={selectChange}
+              />
+            ) : (
+              changes.map(c => {
+                const isActive = c.id === active?.id
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => selectChange(c.id)}
                     className={cn(
-                      'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] font-mono text-[12px] font-bold',
-                      SYM_CLS[c.type]
+                      'flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2.5 text-left transition-colors',
+                      isActive
+                        ? 'border-border bg-muted'
+                        : 'border-transparent hover:bg-muted/50'
                     )}
                   >
-                    {SYM[c.type]}
-                  </span>
-                  <span
-                    className={cn(
-                      'min-w-0 flex-1 truncate font-mono text-[11.5px]',
-                      isActive ? 'text-foreground' : 'text-muted-foreground'
-                    )}
-                  >
-                    {c.path}
-                  </span>
-                  <span
-                    className={cn('shrink-0 text-[10px]', STATUS_CLS[c.status])}
-                  >
-                    {c.status === 'pending'
-                      ? ''
-                      : t(`review.status.${c.status}`)}
-                  </span>
-                </button>
-              )
-            })}
+                    <span
+                      className={cn(
+                        'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] font-mono text-[12px] font-bold',
+                        SYM_CLS[c.type]
+                      )}
+                    >
+                      {SYM[c.type]}
+                    </span>
+                    <span
+                      className={cn(
+                        'min-w-0 flex-1 truncate font-mono text-[11.5px]',
+                        isActive ? 'text-foreground' : 'text-muted-foreground'
+                      )}
+                    >
+                      {c.path}
+                    </span>
+                    <span
+                      className={cn(
+                        'shrink-0 text-[10px]',
+                        STATUS_CLS[c.status]
+                      )}
+                    >
+                      {c.status === 'pending'
+                        ? ''
+                        : t(`review.status.${c.status}`)}
+                    </span>
+                  </button>
+                )
+              })
+            )}
           </div>
           <div className="flex shrink-0 flex-col gap-[7px] border-t p-2.5">
             <Button

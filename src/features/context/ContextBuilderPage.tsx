@@ -67,6 +67,7 @@ const TABS: { id: PreviewTab; labelKey: string }[] = [
   { id: 'tree', labelKey: 'context.tab.tree' },
   { id: 'json', labelKey: 'context.tab.json' },
   { id: 'raw', labelKey: 'context.tab.raw' },
+  { id: 'md', labelKey: 'context.tab.md' },
 ]
 
 export function ContextBuilderPage() {
@@ -89,6 +90,8 @@ export function ContextBuilderPage() {
   const setPreviewTab = useContextStore(s => s.setPreviewTab)
   const refreshPreview = useContextStore(s => s.refreshPreview)
   const copyContext = useContextStore(s => s.copyContext)
+  const copyMarkdown = useContextStore(s => s.copyMarkdown)
+  const markdownText = useContextStore(s => s.markdownText)
   const reset = useContextStore(s => s.reset)
   const selectedFileForCode = useContextStore(s => s.selectedFileForCode)
   const setSelectedFileForCode = useContextStore(s => s.setSelectedFileForCode)
@@ -148,7 +151,7 @@ export function ContextBuilderPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col">
+    <div className="relative flex h-full min-h-0 min-w-0 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-muted/30 px-2.5 py-2 sm:flex-nowrap sm:px-3">
         <div className="flex w-full min-w-[140px] max-w-[200px] flex-1 items-center gap-1.5 rounded-[7px] border border-transparent bg-muted px-2.5 py-1.5 transition-colors focus-within:border-primary sm:w-[180px] sm:flex-none">
           <Search className="h-[13px] w-[13px] shrink-0 text-muted-foreground" />
@@ -224,6 +227,25 @@ export function ContextBuilderPage() {
         </Button>
 
         <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+          {previewTab === 'md' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-[11.5px]"
+              disabled={!protocolContext}
+              onClick={async () => {
+                try {
+                  await copyMarkdown()
+                  toast.success(t('context.copyMdSuccess'))
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : String(e))
+                }
+              }}
+            >
+              <Copy className="mr-1 h-3 w-3" />
+              {t('context.copyMd')}
+            </Button>
+          )}
           <Button
             size="sm"
             className="h-7 px-2.5 text-[11.5px]"
@@ -334,6 +356,10 @@ export function ContextBuilderPage() {
                   collapsed={false}
                   className="h-full"
                 />
+              ) : previewTab === 'md' ? (
+                <pre className="m-0 h-full min-h-0 overflow-auto bg-background px-3 py-3 font-mono text-[11.5px] leading-[1.72] whitespace-pre text-muted-foreground select-text">
+                  {markdownText}
+                </pre>
               ) : (
                 <pre className="m-0 h-full min-h-0 overflow-auto bg-background px-3 py-3 font-mono text-[11.5px] leading-[1.72] whitespace-pre text-muted-foreground select-text">
                   {previewText}

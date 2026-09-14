@@ -93,20 +93,9 @@ pub fn count_files(node: &ProjectNode) -> u32 {
 }
 
 /// Ensure a relative path stays inside the project root after join.
+/// The target path (or a parent) must already exist so it can be canonicalized.
 pub fn resolve_in_project(root: &Path, rel: &str) -> Result<PathBuf, String> {
-    if rel.is_empty() {
-        return Err("Empty path".into());
-    }
-    if rel.contains("..") || Path::new(rel).is_absolute() {
-        return Err(format!("Path escapes project root: {rel}"));
-    }
-    if rel.starts_with('/') || rel.starts_with('\\') {
-        return Err(format!("Absolute paths not allowed: {rel}"));
-    }
-    if rel.chars().nth(1) == Some(':') {
-        return Err(format!("Absolute paths not allowed: {rel}"));
-    }
-
+    validate_rel_path(rel)?;
     let joined = root.join(rel);
     let canonical = joined
         .canonicalize()
@@ -119,6 +108,66 @@ pub fn resolve_in_project(root: &Path, rel: &str) -> Result<PathBuf, String> {
         return Err(format!("Path escapes project root: {rel}"));
     }
     Ok(canonical)
+}
+
+/// Resolve a path that may not exist yet (ADD): validate the deepest existing
+/// ancestor stays under project root, then return the joined absolute path.
+pub fn resolve_new_path_in_project(root: &Path, rel: &str) -> Result<PathBuf, String> {
+    validate_rel_path(rel)?;
+
+    let root_canonical = root
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve project root: {e}"))?;
+
+    let joined = root_canonical.join(rel);
+
+    // Walk up until we find an existing ancestor to canonicalize for escape checks
+    let mut ancestor = joined.as_path();
+    let mut missing_suffix: Vec<std::ffi::OsString> = Vec::new();
+    loop {
+        if ancestor.exists() {
+            let canonical_ancestor = ancestor
+                .canonicalize()
+                .map_err(|e| format!("Cannot resolve parent of {rel}: {e}"))?;
+            if !canonical_ancestor.starts_with(&root_canonical) {
+                return Err(format!("Path escapes project root: {rel}"));
+            }
+            let mut full = canonical_ancestor;
+            for part in missing_suffix.iter().rev() {
+                full.push(part);
+            }
+            // Extra safety: final path still under root
+            if !full.starts_with(&root_canonical) {
+                return Err(format!("Path escapes project root: {rel}"));
+            }
+            return Ok(full);
+        }
+        match ancestor.parent() {
+            Some(parent) => {
+                if let Some(name) = ancestor.file_name() {
+                    missing_suffix.push(name.to_os_string());
+                }
+                ancestor = parent;
+            }
+            None => return Err(format!("Cannot resolve {rel}: no existing parent")),
+        }
+    }
+}
+
+fn validate_rel_path(rel: &str) -> Result<(), String> {
+    if rel.is_empty() {
+        return Err("Empty path".into());
+    }
+    if rel.contains("..") || Path::new(rel).is_absolute() {
+        return Err(format!("Path escapes project root: {rel}"));
+    }
+    if rel.starts_with('/') || rel.starts_with('\\') {
+        return Err(format!("Absolute paths not allowed: {rel}"));
+    }
+    if rel.chars().nth(1) == Some(':') {
+        return Err(format!("Absolute paths not allowed: {rel}"));
+    }
+    Ok(())
 }
 
 /// Stable FNV-1a 64 content fingerprint for external-change detection.
@@ -189,6 +238,24 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         assert!(resolve_in_project(&dir, "../etc/passwd").is_err());
         assert!(resolve_in_project(&dir, "/etc/passwd").is_err());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn resolves_new_path_under_project() {
+        let dir = std::env::temp_dir().join(format!(
+            "ai-ctx-new-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(dir.join("packages")).unwrap();
+        let resolved =
+            resolve_new_path_in_project(&dir, "packages/three-runtime/package.json").unwrap();
+        assert!(resolved.ends_with("packages/three-runtime/package.json"));
+        assert!(resolved.starts_with(dir.canonicalize().unwrap()));
+        assert!(resolve_new_path_in_project(&dir, "../evil.ts").is_err());
         std::fs::remove_dir_all(&dir).ok();
     }
 

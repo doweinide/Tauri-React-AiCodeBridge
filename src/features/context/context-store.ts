@@ -16,12 +16,13 @@ import {
   estimateContextTokens,
   estimateProjectTokens,
   reductionPercent,
+  projectContextToMarkdown,
   type TokenEstimate,
 } from '@/lib/protocol'
 import { useAppSettingsStore } from '@/store/app-settings-store'
 import { collectFilePaths } from '@/features/project/project-store'
 
-export type PreviewTab = 'tree' | 'json' | 'raw'
+export type PreviewTab = 'tree' | 'json' | 'raw' | 'md'
 
 interface ContextState {
   /** Files included in the pruned structure tree */
@@ -34,6 +35,8 @@ interface ContextState {
   buildResult: ContextBuildResult | null
   protocolContext: ProjectContext | null
   previewText: string
+  /** Human-readable Markdown preview (structure + files) */
+  markdownText: string
   building: boolean
   lastError: string | null
   fileHashes: Record<string, string>
@@ -63,6 +66,7 @@ interface ContextState {
   setSelectedFileForCode: (path: string | null) => void
   refreshPreview: (rootPath: string) => Promise<void>
   copyContext: () => Promise<string>
+  copyMarkdown: () => Promise<string>
   reset: () => void
 }
 
@@ -77,6 +81,7 @@ export const useContextStore = create<ContextState>()(
       buildResult: null,
       protocolContext: null,
       previewText: '',
+      markdownText: '',
       building: false,
       lastError: null,
       fileHashes: {},
@@ -214,6 +219,7 @@ export const useContextStore = create<ContextState>()(
           )
           const protocolContext = toProjectContext(buildResult)
           const previewText = contextJsonText(protocolContext)
+          const markdownText = projectContextToMarkdown(protocolContext)
           const fileHashes: Record<string, string> = {}
           for (const f of buildResult.files) fileHashes[f.path] = f.hash
 
@@ -229,6 +235,7 @@ export const useContextStore = create<ContextState>()(
               buildResult,
               protocolContext,
               previewText,
+              markdownText,
               building: false,
               fileHashes,
               tokenStats,
@@ -261,6 +268,14 @@ export const useContextStore = create<ContextState>()(
         return text
       },
 
+      copyMarkdown: async () => {
+        const ctx = get().protocolContext
+        if (!ctx) throw new Error('No context to copy')
+        const text = projectContextToMarkdown(ctx)
+        await navigator.clipboard.writeText(text)
+        return text
+      },
+
       reset: () =>
         set(
           {
@@ -272,6 +287,7 @@ export const useContextStore = create<ContextState>()(
             buildResult: null,
             protocolContext: null,
             previewText: '',
+            markdownText: '',
             fileHashes: {},
             selectedFileForCode: null,
             tokenStats: null,

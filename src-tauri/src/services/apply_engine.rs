@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::path::{Path, PathBuf};
 
-use super::context_builder::{hash_content, new_id, resolve_in_project};
+use super::context_builder::{
+    hash_content, new_id, resolve_in_project, resolve_new_path_in_project,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -64,7 +66,12 @@ pub fn apply_changes(
         if change.path.starts_with(".history/") || change.path == ".history" {
             return Err("Cannot modify .history/ snapshot directory".into());
         }
-        let abs = resolve_in_project(&root, &change.path)?;
+        let abs = if change.change_type == "add" {
+            // ADD targets may not exist yet — create parent dirs on write
+            resolve_new_path_in_project(&root, &change.path)?
+        } else {
+            resolve_in_project(&root, &change.path)?
+        };
         match change.change_type.as_str() {
             "add" => {
                 if change.new_content.is_none() {
@@ -112,7 +119,11 @@ pub fn apply_changes(
     let mut manifest_files: Vec<serde_json::Value> = Vec::new();
 
     for change in changes {
-        let abs = resolve_in_project(&root, &change.path)?;
+        let abs = if change.change_type == "add" {
+            resolve_new_path_in_project(&root, &change.path)?
+        } else {
+            resolve_in_project(&root, &change.path)?
+        };
         let snapshot_path = snapshot_root.join(&change.path);
         if let Some(parent) = snapshot_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| format!("snapshot parent: {e}"))?;

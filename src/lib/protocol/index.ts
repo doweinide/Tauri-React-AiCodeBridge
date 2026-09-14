@@ -20,6 +20,7 @@ export {
   reductionPercent,
   type TokenEstimate,
 } from './token-estimate'
+export { projectContextToMarkdown } from './markdown'
 
 import type { ProjectContext } from './types'
 import {

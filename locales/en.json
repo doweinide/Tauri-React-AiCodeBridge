@@ -234,5 +234,10 @@
   "settings.token.charsPerTokenDesc": "Token estimate = payload chars ÷ this value (default 4)",
   "settings.token.charsPerTokenPlaceholder": "e.g. 4",
   "settings.token.payloadBased": "Estimate Token from copy payload",
-  "settings.token.payloadBasedDesc": "Count actual AI instruction + ProjectContext JSON size"
+  "settings.token.payloadBasedDesc": "Count actual AI instruction + ProjectContext JSON size",
+  "context.tab.md": "MD",
+  "context.copyMd": "Copy MD",
+  "context.copyMdSuccess": "Copied Markdown preview",
+  "review.viewList": "List view",
+  "review.viewTree": "Tree view"
 }

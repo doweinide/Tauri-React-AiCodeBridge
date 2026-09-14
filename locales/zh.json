@@ -234,5 +234,10 @@
   "settings.token.charsPerTokenDesc": "用于估算 Token：载荷字符数 ÷ 该值（默认 4）",
   "settings.token.charsPerTokenPlaceholder": "例如 4",
   "settings.token.payloadBased": "按复制载荷计算 Token",
-  "settings.token.payloadBasedDesc": "统计 AI 指令 + ProjectContext JSON 的实际大小"
+  "settings.token.payloadBasedDesc": "统计 AI 指令 + ProjectContext JSON 的实际大小",
+  "context.tab.md": "MD",
+  "context.copyMd": "复制 MD",
+  "context.copyMdSuccess": "已复制 Markdown 预览",
+  "review.viewList": "列表视图",
+  "review.viewTree": "树结构视图"
 }

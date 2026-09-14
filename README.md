@@ -221,10 +221,13 @@ src-tauri/src/
 
 ## 效果截图(mac)
 
-![image-20260914212539783](/Users/lanyazhou/Library/Application Support/typora-user-images/image-20260914212539783.png)
+![image-20260914212539783](./项目管理/效果图/上下文构建.png)
 
-![image-20260914212639160](/Users/lanyazhou/Library/Application Support/typora-user-images/image-20260914212639160.png)
+![image-20260914212639160](./项目管理/效果图/AI交换.png)
 
+![image-20260914212539783](./项目管理/效果图/变更评审.png)
+
+![image-20260914212639160](./项目管理/效果图/变更评审-tree.png)
 ## 非目标 / 后续
 
 **MVP 不做：** AI API 直连、内置聊天、IDE 能力、云同步。

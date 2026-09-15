@@ -92,6 +92,190 @@ fn load_aiignore(root: &Path) -> Vec<String> {
         .collect()
 }
 
+fn has_glob_meta(s: &str) -> bool {
+    s.contains('*') || s.contains('?') || s.contains('[')
+}
+
+/// Match one glob segment: `*` (no `/`), `?` (one char, no `/`), `[...]`.
+fn match_segment(pattern: &str, text: &str) -> bool {
+    let p: Vec<char> = pattern.chars().collect();
+    let t: Vec<char> = text.chars().collect();
+    let (mut pi, mut ti) = (0usize, 0usize);
+    let (mut star, mut backtrack) = (None::<usize>, 0usize);
+
+    while ti < t.len() {
+        if pi < p.len() {
+            match p[pi] {
+                '?' => {
+                    pi += 1;
+                    ti += 1;
+                    continue;
+                }
+                '*' => {
+                    star = Some(pi);
+                    backtrack = ti;
+                    pi += 1;
+                    continue;
+                }
+                '[' => {
+                    if let Some((ok, next_pi)) = match_char_class(&p, pi, t[ti]) {
+                        if ok {
+                            pi = next_pi;
+                            ti += 1;
+                            continue;
+                        }
+                    } else {
+                        // Unclosed class: treat as literal '['
+                        if t[ti] == '[' {
+                            pi += 1;
+                            ti += 1;
+                            continue;
+                        }
+                    }
+                }
+                c => {
+                    if c == t[ti] {
+                        pi += 1;
+                        ti += 1;
+                        continue;
+                    }
+                }
+            }
+        }
+        if let Some(sp) = star {
+            pi = sp + 1;
+            backtrack += 1;
+            ti = backtrack;
+            continue;
+        }
+        return false;
+    }
+    while pi < p.len() && p[pi] == '*' {
+        pi += 1;
+    }
+    pi == p.len()
+}
+
+/// Returns (matched, next_pattern_index) when class is well-formed.
+fn match_char_class(p: &[char], start: usize, ch: char) -> Option<(bool, usize)> {
+    let mut i = start + 1;
+    let negated = i < p.len() && (p[i] == '!' || p[i] == '^');
+    if negated {
+        i += 1;
+    }
+    let mut matched = false;
+    let mut first = true;
+    while i < p.len() {
+        if p[i] == ']' && !first {
+            return Some((matched != negated, i + 1));
+        }
+        first = false;
+        if p[i] == '\\' && i + 1 < p.len() {
+            if p[i + 1] == ch {
+                matched = true;
+            }
+            i += 2;
+            continue;
+        }
+        // range a-z
+        if i + 2 < p.len() && p[i + 1] == '-' && p[i + 2] != ']' {
+            let (lo, hi) = (p[i], p[i + 2]);
+            if ch >= lo && ch <= hi {
+                matched = true;
+            }
+            i += 3;
+            continue;
+        }
+        if p[i] == ch {
+            matched = true;
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Match full relative path against a glob. `**` crosses `/`.
+fn match_glob_path(pattern: &str, path: &str) -> bool {
+    let pat: Vec<&str> = pattern.split('/').collect();
+    let parts: Vec<&str> = path.split('/').collect();
+    glob_match_parts(&pat, &parts)
+}
+
+fn glob_match_parts(pat: &[&str], parts: &[&str]) -> bool {
+    if pat.is_empty() {
+        return parts.is_empty();
+    }
+    if pat[0] == "**" {
+        // `**` matches zero or more path segments
+        let rest = &pat[1..];
+        for skip in 0..=parts.len() {
+            if glob_match_parts(rest, &parts[skip..]) {
+                return true;
+            }
+        }
+        return false;
+    }
+    if parts.is_empty() {
+        return false;
+    }
+    match_segment(pat[0], parts[0]) && glob_match_parts(&pat[1..], &parts[1..])
+}
+
+/// Match a single ignore rule (path prefix or glob) against a relative path.
+///
+/// Supported:
+/// - Plain path: `src/secrets` also ignores everything under it
+/// - Glob: `*`, `?`, `[...]`, `**` (cross directories)
+/// - Pattern without `/` matches the basename anywhere (gitignore-like)
+/// - Trailing `/` is treated as a directory prefix
+fn rule_matches_path(rule: &str, rel_path: &str) -> bool {
+    let rule = rule.trim();
+    if rule.is_empty() {
+        return false;
+    }
+    let dir_only = rule.ends_with('/');
+    let rule = rule.trim_end_matches('/');
+    if rule.is_empty() {
+        return false;
+    }
+    let rule = rule.trim_start_matches("./");
+    let path = rel_path.trim_matches('/');
+
+    // Basename-only patterns: `*.env`, `credentials.*`
+    if !rule.contains('/') {
+        let basename = path.rsplit('/').next().unwrap_or(path);
+        if has_glob_meta(rule) {
+            return match_segment(rule, basename);
+        }
+        if basename == rule {
+            return true;
+        }
+        // Also allow legacy exact path / ancestor prefix for plain names
+        // (e.g. rule `docs` still covers `docs` and `docs/a.md`)
+        return path == rule || path.starts_with(&format!("{rule}/"));
+    }
+
+    // Glob with `/`
+    if has_glob_meta(rule) {
+        // Match the path itself, or any ancestor (ignore whole matched subtree)
+        let mut current = path;
+        loop {
+            if match_glob_path(rule, current) {
+                return true;
+            }
+            match current.rfind('/') {
+                Some(idx) => current = &current[..idx],
+                None => break,
+            }
+        }
+        let _ = dir_only;
+        return false;
+    }
+
+    // Plain path with `/`: exact or ancestor prefix
+    path == rule || path.starts_with(&format!("{rule}/"))
+}
+
 fn matches_rule_list(rel_path: &str, name: &str, rules: &[String]) -> bool {
     for rule in rules {
         let rule = rule.trim().trim_end_matches('/');
@@ -121,18 +305,9 @@ fn matches_rule_list(rel_path: &str, name: &str, rules: &[String]) -> bool {
     false
 }
 
-/// Prefix match for user "ignore this folder/file" entries (relative paths).
+/// Match user ignore rules: path prefixes and Glob patterns.
 fn matches_custom_ignore(rel_path: &str, extra: &[String]) -> bool {
-    for p in extra {
-        let p = p.trim().trim_end_matches('/');
-        if p.is_empty() {
-            continue;
-        }
-        if rel_path == p || rel_path.starts_with(&format!("{p}/")) {
-            return true;
-        }
-    }
-    false
+    extra.iter().any(|rule| rule_matches_path(rule, rel_path))
 }
 
 #[derive(Default)]
@@ -253,7 +428,7 @@ pub fn scan_project(root: &Path) -> Result<ScannedProject, String> {
     scan_project_with_ignores(root, &[])
 }
 
-/// Scan a project. `extra_ignores` are relative path prefixes (folders/files)
+/// Scan a project. `extra_ignores` are relative path prefixes or Glob patterns
 /// that should appear as `ignored: true` (disabled in UI, excluded from Context).
 pub fn scan_project_with_ignores(
     root: &Path,
@@ -363,5 +538,43 @@ mod tests {
         assert!(is_sensitive_basename("cert.pem"));
         assert!(is_sensitive_basename("credentials.json"));
         assert!(!is_sensitive_basename("login.ts"));
+    }
+
+    #[test]
+    fn glob_ignore_rules() {
+        let dir = temp_project();
+        fs::write(dir.join("src/auth/auth.test.ts"), "x\n").unwrap();
+        fs::write(dir.join("secret.env"), "x\n").unwrap();
+        let rules = vec![
+            "**/*.test.ts".to_string(),
+            "src/**/internal/**".to_string(),
+            "*.env".to_string(),
+        ];
+        let scanned = scan_project_with_ignores(&dir, &rules).unwrap();
+        assert!(
+            find_node(&scanned.tree, "src/auth/auth.test.ts")
+                .unwrap()
+                .ignored
+        );
+        assert!(find_node(&scanned.tree, "src/auth/login.ts")
+            .unwrap()
+            .ignored
+            == false);
+        assert!(find_node(&scanned.tree, "secret.env").unwrap().ignored);
+        assert!(find_node(&scanned.tree, "docs/a.md").unwrap().ignored == false);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn rule_matches_path_cases() {
+        assert!(rule_matches_path("src/secrets", "src/secrets"));
+        assert!(rule_matches_path("src/secrets", "src/secrets/key.pem"));
+        assert!(rule_matches_path("*.env", "a.env"));
+        assert!(rule_matches_path("*.env", "config/prod.env"));
+        assert!(rule_matches_path("**/*.test.ts", "src/a/b.test.ts"));
+        assert!(rule_matches_path("src/**/internal/**", "src/x/internal/y.ts"));
+        assert!(rule_matches_path("docs/", "docs/a.md"));
+        assert!(!rule_matches_path("src/secrets", "src/secrets2"));
+        assert!(!rule_matches_path("**/*.test.ts", "src/a.ts"));
     }
 }

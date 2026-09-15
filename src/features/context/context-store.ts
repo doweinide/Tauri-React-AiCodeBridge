@@ -22,7 +22,7 @@ import {
   type TokenEstimate,
 } from '@/lib/protocol'
 import { useAppSettingsStore } from '@/store/app-settings-store'
-import { useIgnoreStore } from './ignore-store'
+import { useIgnoreStore, ruleMatchesPath } from './ignore-store'
 import {
   collectFilePaths,
   findNode,
@@ -69,8 +69,8 @@ interface ContextState {
   clearContent: () => void
   /** Copy structure selection to content (files currently in structure) */
   copyStructureToContent: () => void
-  /** Drop selection entries under an ignore prefix (dir or file). */
-  removePathsUnder: (prefix: string) => void
+  /** Drop selection entries matching an ignore rule (path prefix or Glob). */
+  removePathsUnder: (rule: string) => void
   exportSelection: () => ProjectSelection
   applySelection: (structure: string[], content: string[]) => void
   setPreviewTab: (tab: PreviewTab) => void
@@ -221,13 +221,11 @@ export const useContextStore = create<ContextState>()(
           'copyStructureToContent'
         ),
 
-      removePathsUnder: prefix => {
-        const p = prefix.replace(/\/+$/, '')
-        if (!p) return
+      removePathsUnder: rule => {
+        const r = rule.trim()
+        if (!r) return
         const drop = (paths: Iterable<string>) =>
-          new Set(
-            [...paths].filter(x => x !== p && !x.startsWith(`${p}/`))
-          )
+          new Set([...paths].filter(x => !ruleMatchesPath(r, x)))
         set(
           state => ({
             structureSelected: drop(state.structureSelected),

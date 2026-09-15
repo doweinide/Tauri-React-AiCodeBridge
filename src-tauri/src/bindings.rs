@@ -28,6 +28,7 @@ pub fn generate_bindings() -> Builder<tauri::Wry> {
         changes::apply_ai_changes,
         changes::undo_ai_changes,
         changes::list_undo_change_sets,
+        changes::clear_project_history,
     ])
 }
 

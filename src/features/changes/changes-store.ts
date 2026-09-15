@@ -10,6 +10,7 @@ import {
   applyAiChanges,
   undoAiChanges,
   readProjectFiles,
+  clearProjectHistory,
 } from '@/services/project'
 import type { ChangeInput } from '@/lib/tauri/tauri-bindings'
 import { diffForAdd, diffForDelete, diffLines, type DiffLine } from '@/lib/diff'
@@ -170,12 +171,22 @@ export const useChangesStore = create<ChangesState>()(
           }
         )
 
+        // New parse cycle: drop previous undo snapshots and last-apply UI state
+        try {
+          await clearProjectHistory(rootPath)
+        } catch {
+          // Non-fatal: continue with the new ChangeSet
+        }
+
         set(
           {
             parsed: parsedChanges,
             changes,
             parseError: null,
             activeId: changes[0]?.id ?? null,
+            lastChangeSetId: null,
+            applySummary: null,
+            conflictPath: null,
           },
           undefined,
           'parse/ok'

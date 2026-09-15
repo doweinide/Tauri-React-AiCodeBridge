@@ -295,6 +295,42 @@ pub fn list_undo_snapshots(project_root: &str) -> Result<Vec<String>, String> {
     Ok(ids)
 }
 
+/// Remove all undo snapshots under `<project>/.history/`.
+/// Used when starting a new AI exchange cycle so old undo state cannot be applied
+/// against a fresh parse.
+pub fn clear_project_history(project_root: &str) -> Result<u32, String> {
+    let root = PathBuf::from(project_root)
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve project root: {e}"))?;
+    let dir = history_root(&root);
+    if !dir.is_dir() {
+        return Ok(0);
+    }
+
+    let mut removed = 0u32;
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name == "." || name == ".." {
+                continue;
+            }
+            if path.is_dir() {
+                match std::fs::remove_dir_all(&path) {
+                    Ok(()) => removed += 1,
+                    Err(e) => {
+                        log::warn!("Failed to remove history snapshot {name}: {e}");
+                    }
+                }
+            } else {
+                // stray file in .history/
+                let _ = std::fs::remove_file(&path);
+            }
+        }
+    }
+    Ok(removed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -304,6 +340,24 @@ mod tests {
         let dir = std::env::temp_dir().join("ai-apply-test");
         std::fs::create_dir_all(&dir).unwrap();
         assert!(resolve_in_project(&dir, "../../etc/passwd").is_err());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn clears_history_snapshots() {
+        let dir = std::env::temp_dir().join(format!(
+            "ai-hist-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(dir.join(".history/111_a")).unwrap();
+        std::fs::create_dir_all(dir.join(".history/222_b")).unwrap();
+        std::fs::write(dir.join(".history/111_a/x.ts"), b"a").unwrap();
+        let n = clear_project_history(&dir.to_string_lossy()).unwrap();
+        assert_eq!(n, 2);
+        assert!(!dir.join(".history/111_a").exists());
         std::fs::remove_dir_all(&dir).ok();
     }
 }

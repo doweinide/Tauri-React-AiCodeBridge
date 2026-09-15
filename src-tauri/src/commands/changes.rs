@@ -3,7 +3,8 @@
 use std::path::PathBuf;
 
 use crate::services::apply_engine::{
-    apply_changes, list_undo_snapshots, undo_apply, ApplyResult, ChangeInput,
+    apply_changes, clear_project_history as clear_history_dir, list_undo_snapshots, undo_apply,
+    ApplyResult, ChangeInput,
 };
 
 /// Apply parsed AI changes to the local project.
@@ -34,4 +35,11 @@ pub async fn undo_ai_changes(
 #[specta::specta]
 pub async fn list_undo_change_sets(root_path: String) -> Result<Vec<String>, String> {
     list_undo_snapshots(&root_path)
+}
+
+/// Clear all `.history/` undo snapshots for a project (new AI parse cycle).
+#[tauri::command]
+#[specta::specta]
+pub async fn clear_project_history(root_path: String) -> Result<u32, String> {
+    clear_history_dir(&root_path)
 }

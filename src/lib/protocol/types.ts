@@ -100,6 +100,35 @@ Rules:
 3. Paths must be relative to the project root. Never use absolute paths or "..".
 4. Response must be a single JSON object.`
 
+export const AI_INSTRUCTION_ZH = `你正在修改一个已有的软件项目。
+
+请分析下方提供的项目上下文（JSON）。
+
+只返回符合下面 schema 的合法 JSON 对象。不要用 markdown 代码围栏包裹，不要附加解释。
+
+Schema:
+{
+  "version": "1.0",
+  "type": "project_changes",
+  "changes": [
+    {
+      "operation": "add" | "modify" | "delete",
+      "path": "相对项目根目录的路径",
+      "content": "完整文件内容（add/modify 必填，delete 省略）"
+    }
+  ]
+}
+
+规则:
+1. 只包含与用户需求相关的文件。
+2. modify 必须返回完整的新文件内容（不是 diff）。
+3. 路径必须相对项目根目录，禁止绝对路径和 ".."。
+4. 回复必须是单个 JSON 对象。`
+
+export function getAiInstruction(lang: 'zh' | 'en' = 'en'): string {
+  return lang === 'zh' ? AI_INSTRUCTION_ZH : AI_INSTRUCTION
+}
+
 export const SAMPLE_CHANGE_JSON = `{
   "version": "1.0",
   "type": "project_changes",

@@ -104,3 +104,8 @@ export async function undoAiChanges(
 export async function listUndoChangeSets(rootPath: string): Promise<string[]> {
   return unwrapResult(await commands.listUndoChangeSets(rootPath))
 }
+
+/** Clear all `.history/` undo snapshots (call when starting a new parse). */
+export async function clearProjectHistory(rootPath: string): Promise<number> {
+  return unwrapResult(await commands.clearProjectHistory(rootPath))
+}

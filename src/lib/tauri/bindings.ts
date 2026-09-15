@@ -258,6 +258,17 @@ async listUndoChangeSets(rootPath: string) : Promise<Result<string[], string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Clear all `.history/` undo snapshots for a project (new AI parse cycle).
+ */
+async clearProjectHistory(rootPath: string) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("clear_project_history", { rootPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 

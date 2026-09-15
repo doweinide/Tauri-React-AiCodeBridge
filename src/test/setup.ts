@@ -120,6 +120,7 @@ vi.mock('@/lib/tauri/tauri-bindings', () => ({
       ),
     undoAiChanges: vi.fn().mockResolvedValue(ok([])),
     listUndoChangeSets: vi.fn().mockResolvedValue(ok([])),
+    clearProjectHistory: vi.fn().mockResolvedValue(ok(0)),
   },
   unwrapResult: vi.fn(
     (result: { status: string; data?: unknown; error?: unknown }) => {

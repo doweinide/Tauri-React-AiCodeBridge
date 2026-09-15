@@ -239,5 +239,18 @@
   "context.copyMd": "Copy MD",
   "context.copyMdSuccess": "Copied Markdown preview",
   "review.viewList": "List view",
-  "review.viewTree": "Tree view"
+  "review.viewTree": "Tree view",
+  "exchange.exportTitle": "Export",
+  "exchange.exportDesc": "Copy context and AI instruction, then paste into your web AI",
+  "exchange.promptTitle": "AI Instruction",
+  "exchange.pasteTitle": "Paste AI Response JSON",
+  "exchange.pastePlaceholder": "{\n  \"version\": \"1.0\",\n  \"type\": \"project_changes\",\n  \"changes\": [\n    { \"operation\": \"modify\", \"path\": \"src/auth/login.ts\", \"content\": \"...\" }\n  ]\n}",
+  "exchange.responsePreview": "Response preview",
+  "exchange.previewEmpty": "Paste valid JSON to preview here",
+  "exchange.infoContextTitle": "Copy Context",
+  "exchange.infoContextBody": "Copies AI Instruction + standard ProjectContext JSON (structure + selected content). Select structure/content in Context Builder first.",
+  "exchange.infoPromptTitle": "Copy AI Instruction",
+  "exchange.infoPromptBody": "System prompt that requires the AI to return only project_changes JSON. Paste together with Context.",
+  "exchange.infoPasteTitle": "Paste AI response",
+  "exchange.infoPasteBody": "Paste the project_changes JSON from the web AI. Toggle JSON / MD preview on the right; parse to open Change Review."
 }

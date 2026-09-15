@@ -239,5 +239,18 @@
   "context.copyMd": "复制 MD",
   "context.copyMdSuccess": "已复制 Markdown 预览",
   "review.viewList": "列表视图",
-  "review.viewTree": "树结构视图"
+  "review.viewTree": "树结构视图",
+  "exchange.exportTitle": "导出",
+  "exchange.exportDesc": "复制上下文与 AI 指令，粘贴到网页 AI",
+  "exchange.promptTitle": "AI 提示词",
+  "exchange.pasteTitle": "粘贴 AI Response JSON",
+  "exchange.pastePlaceholder": "{\n  \"version\": \"1.0\",\n  \"type\": \"project_changes\",\n  \"changes\": [\n    { \"operation\": \"modify\", \"path\": \"src/auth/login.ts\", \"content\": \"...\" }\n  ]\n}",
+  "exchange.responsePreview": "响应预览",
+  "exchange.previewEmpty": "粘贴有效 JSON 后在此预览",
+  "exchange.infoContextTitle": "复制 Context",
+  "exchange.infoContextBody": "复制 AI Instruction + 标准 ProjectContext JSON（含结构与选中内容）。可先在「上下文构建」里勾选结构/内容。",
+  "exchange.infoPromptTitle": "复制 AI 指令",
+  "exchange.infoPromptBody": "只要求 AI 返回 project_changes JSON 的系统说明，可与 Context 一起粘贴。",
+  "exchange.infoPasteTitle": "粘贴 AI 回复",
+  "exchange.infoPasteBody": "粘贴网页 AI 返回的 project_changes JSON。右侧可切换 JSON / MD 预览；点击解析后进入变更评审。"
 }

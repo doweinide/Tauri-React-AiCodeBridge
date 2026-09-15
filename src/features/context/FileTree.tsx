@@ -4,7 +4,10 @@ import { Folder, FileText, ChevronRight, Ban } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { ProjectNode } from '@/lib/tauri/tauri-bindings'
-import { useProjectStore } from '@/features/project/project-store'
+import {
+  collectFilePaths,
+  useProjectStore,
+} from '@/features/project/project-store'
 import { useContextStore, formatNumber } from './context-store'
 import { useIgnoreStore } from './ignore-store'
 
@@ -21,15 +24,6 @@ function matchesSearch(node: ProjectNode, q: string): boolean {
   if (!q) return true
   if (node.name.toLowerCase().includes(q)) return true
   return (node.children ?? []).some(c => matchesSearch(c, q))
-}
-
-/** Collect selectable (non-ignored) file paths under a node. */
-function collectSelectableFiles(node: ProjectNode): string[] {
-  if (node.ignored) return []
-  if (node.nodeType === 'file') return [node.path]
-  const acc: string[] = []
-  for (const c of node.children ?? []) acc.push(...collectSelectableFiles(c))
-  return acc
 }
 
 function collectFiles(node: ProjectNode): string[] {
@@ -119,6 +113,7 @@ export function FileTree({ root }: FileTreeProps) {
   const toggleStructureDir = useContextStore(s => s.toggleStructureDir)
   const toggleContentFile = useContextStore(s => s.toggleContentFile)
   const toggleContentDir = useContextStore(s => s.toggleContentDir)
+  const removePathsUnder = useContextStore(s => s.removePathsUnder)
   const project = useProjectStore(s => s.project)
   const rescan = useProjectStore(s => s.rescan)
   const addGlobal = useIgnoreStore(s => s.addGlobal)
@@ -158,6 +153,8 @@ export function FileTree({ root }: FileTreeProps) {
     const prefix = menu.path
     if (scope === 'project') addProject(project.rootPath, prefix)
     else addGlobal(prefix)
+    // Drop now-disabled paths so they stay out of selection/export
+    removePathsUnder(prefix)
     closeMenu()
     toast.success(
       scope === 'project'
@@ -195,7 +192,7 @@ export function FileTree({ root }: FileTreeProps) {
     const pad = Math.min(depth, 6) * 13 + 6
     const ignored = node.ignored
     const files = isDir
-      ? collectSelectableFiles(node)
+      ? collectFilePaths(node)
       : ignored
         ? []
         : [node.path]

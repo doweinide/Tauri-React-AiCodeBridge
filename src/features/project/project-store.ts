@@ -87,10 +87,12 @@ export const useProjectStore = create<ProjectState>()(
   )
 )
 
+/** Collect selectable file paths under a node (skips ignored/disabled). */
 export function collectFilePaths(
   node: ProjectNode,
   acc: string[] = []
 ): string[] {
+  if (node.ignored) return acc
   if (node.nodeType === 'file') {
     acc.push(node.path)
     return acc

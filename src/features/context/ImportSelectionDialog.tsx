@@ -153,14 +153,17 @@ export function ImportSelectionDialog({
   const apply = () => {
     if (!preview || preview.error) return
 
+    const selectable = new Set(allFiles)
+    const filter = (paths: string[]) => paths.filter(p => selectable.has(p))
+
     const nextStructure =
       mode === 'replace'
-        ? new Set(preview.structure)
-        : new Set([...structureSelected, ...preview.structure])
+        ? new Set(filter(preview.structure))
+        : new Set([...structureSelected, ...filter(preview.structure)])
     const nextContent =
       mode === 'replace'
-        ? new Set(preview.content)
-        : new Set([...contentSelected, ...preview.content])
+        ? new Set(filter(preview.content))
+        : new Set([...contentSelected, ...filter(preview.content)])
 
     useContextStore.setState({
       structureSelected: nextStructure,

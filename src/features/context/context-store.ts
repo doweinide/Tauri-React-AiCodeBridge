@@ -23,7 +23,11 @@ import {
 } from '@/lib/protocol'
 import { useAppSettingsStore } from '@/store/app-settings-store'
 import { useIgnoreStore } from './ignore-store'
-import { collectFilePaths } from '@/features/project/project-store'
+import {
+  collectFilePaths,
+  findNode,
+  useProjectStore,
+} from '@/features/project/project-store'
 
 export type PreviewTab = 'tree' | 'json' | 'raw' | 'md'
 
@@ -65,6 +69,8 @@ interface ContextState {
   clearContent: () => void
   /** Copy structure selection to content (files currently in structure) */
   copyStructureToContent: () => void
+  /** Drop selection entries under an ignore prefix (dir or file). */
+  removePathsUnder: (prefix: string) => void
   exportSelection: () => ProjectSelection
   applySelection: (structure: string[], content: string[]) => void
   setPreviewTab: (tab: PreviewTab) => void
@@ -215,18 +221,40 @@ export const useContextStore = create<ContextState>()(
           'copyStructureToContent'
         ),
 
-      /** Export current structure/content path lists */
-      exportSelection: () => {
-        const { structureSelected, contentSelected } = get()
-        return createSelection([...structureSelected], [...contentSelected])
+      removePathsUnder: prefix => {
+        const p = prefix.replace(/\/+$/, '')
+        if (!p) return
+        const drop = (paths: Iterable<string>) =>
+          new Set(
+            [...paths].filter(x => x !== p && !x.startsWith(`${p}/`))
+          )
+        set(
+          state => ({
+            structureSelected: drop(state.structureSelected),
+            contentSelected: drop(state.contentSelected),
+          }),
+          undefined,
+          'removePathsUnder'
+        )
       },
 
-      /** Apply imported selection JSON */
+      /** Export current structure/content path lists (excluding ignored). */
+      exportSelection: () => {
+        const { structureSelected, contentSelected } = get()
+        const root = useProjectStore.getState().project?.tree ?? null
+        return createSelection(
+          filterSelectablePaths([...structureSelected], root),
+          filterSelectablePaths([...contentSelected], root)
+        )
+      },
+
+      /** Apply imported selection JSON (skips ignored/disabled paths) */
       applySelection: (structure: string[], content: string[]) => {
+        const root = useProjectStore.getState().project?.tree ?? null
         set(
           {
-            structureSelected: new Set(structure),
-            contentSelected: new Set(content),
+            structureSelected: new Set(filterSelectablePaths(structure, root)),
+            contentSelected: new Set(filterSelectablePaths(content, root)),
           },
           undefined,
           'applySelection'
@@ -336,6 +364,18 @@ export const useContextStore = create<ContextState>()(
 
 export function formatNumber(n: number): string {
   return n.toLocaleString()
+}
+
+/** Keep only paths that exist in the tree and are not ignored/disabled. */
+function filterSelectablePaths(
+  paths: string[],
+  root: ProjectNode | null
+): string[] {
+  if (!root) return paths
+  return paths.filter(p => {
+    const node = findNode(root, p)
+    return node != null && !node.ignored
+  })
 }
 
 /** Expand structure selection when user picks a directory path prefix. */

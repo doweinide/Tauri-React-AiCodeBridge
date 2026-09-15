@@ -3,10 +3,13 @@ import { useTranslation } from 'react-i18next'
 import {
   CheckCheck,
   Copy,
+  Download,
   Eraser,
+  FileJson,
   MoveRight,
   RefreshCw,
   Search,
+  Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -26,7 +29,13 @@ import { CodeViewer, JsonTreeView } from '@/components/code'
 import { useProjectStore } from '@/features/project/project-store'
 import { useAppSettingsStore } from '@/store/app-settings-store'
 import { FileTree, useFileCount } from './FileTree'
-import { formatNumber, useContextStore, type PreviewTab } from './context-store'
+import { ImportSelectionDialog } from './ImportSelectionDialog'
+import { serializeSelection, getSelectionPrompt } from '@/lib/protocol'
+import {
+  formatNumber,
+  useContextStore,
+  type PreviewTab,
+} from './context-store'
 
 function IconAction({
   label,
@@ -83,6 +92,7 @@ export function ContextBuilderPage() {
   const clearStructure = useContextStore(s => s.clearStructure)
   const clearContent = useContextStore(s => s.clearContent)
   const copyStructureToContent = useContextStore(s => s.copyStructureToContent)
+  const exportSelection = useContextStore(s => s.exportSelection)
   const buildResult = useContextStore(s => s.buildResult)
   const protocolContext = useContextStore(s => s.protocolContext)
   const previewText = useContextStore(s => s.previewText)
@@ -101,6 +111,7 @@ export function ContextBuilderPage() {
   const reduction = useContextStore(s => s.reductionPercent)
   const charsPerToken = useAppSettingsStore(s => s.charsPerToken)
   const [copied, setCopied] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const lastRootRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -185,6 +196,18 @@ export function ContextBuilderPage() {
           </IconAction>
         </div>
 
+        {/* 同步：结构 → 内容（居中） */}
+        <IconAction
+          label={t('context.syncStructureToContent')}
+          tone="primary"
+          onClick={() => {
+            copyStructureToContent()
+            toast.success(t('context.syncDone'))
+          }}
+        >
+          <MoveRight className="h-3.5 w-3.5" />
+        </IconAction>
+
         {/* 内容 legend + icon actions */}
         <div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background/40 px-1.5 py-0.5">
           <span
@@ -206,14 +229,33 @@ export function ContextBuilderPage() {
         </div>
 
         <IconAction
-          label={t('context.syncStructureToContent')}
-          tone="primary"
-          onClick={() => {
-            copyStructureToContent()
-            toast.success(t('context.syncDone'))
+          label={t('context.importSelection')}
+          onClick={() => setImportOpen(true)}
+        >
+          <FileJson className="h-3.5 w-3.5" />
+        </IconAction>
+        <IconAction
+          label={t('context.exportSelection')}
+          onClick={async () => {
+            try {
+              const sel = exportSelection()
+              await navigator.clipboard.writeText(serializeSelection(sel))
+              toast.success(t('context.exportSelectionOk'))
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : String(e))
+            }
           }}
         >
-          <MoveRight className="h-3.5 w-3.5" />
+          <Download className="h-3.5 w-3.5" />
+        </IconAction>
+        <IconAction
+          label={t('context.copySelectionPrompt')}
+          onClick={async () => {
+            await navigator.clipboard.writeText(getSelectionPrompt('zh'))
+            toast.success(t('context.copySelectionPromptOk'))
+          }}
+        >
+          <Sparkles className="h-3.5 w-3.5" />
         </IconAction>
 
         <Button
@@ -369,6 +411,14 @@ export function ContextBuilderPage() {
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
+
+      {project.tree ? (
+        <ImportSelectionDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          root={project.tree}
+        />
+      ) : null}
 
       <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-2 border-t bg-muted/30 px-3 py-2.5 sm:gap-[22px] sm:px-4">
         <Stat

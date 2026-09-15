@@ -21,6 +21,15 @@ export {
   type TokenEstimate,
 } from './token-estimate'
 export { projectContextToMarkdown } from './markdown'
+export {
+  type ProjectSelection,
+  createSelection,
+  serializeSelection,
+  parseSelection,
+  getSelectionPrompt,
+  SELECTION_PROMPT_ZH,
+  SELECTION_PROMPT_EN,
+} from './selection'
 
 import type { ProjectContext } from './types'
 import {

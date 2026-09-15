@@ -57,13 +57,14 @@ pub fn prune_tree_to_files(
     }
 
     if children.is_empty() {
-        // Root always kept so protocol has a structure root
-        if node.path.is_empty() {
+        // Keep root always; keep empty dir if explicitly selected (dir path in keep)
+        if node.path.is_empty() || keep.contains(&node.path) {
             return Some(ProjectNode {
                 name: node.name.clone(),
                 path: node.path.clone(),
                 node_type: node.node_type.clone(),
                 size: node.size,
+                ignored: node.ignored,
                 children: Some(Vec::new()),
             });
         }
@@ -75,6 +76,7 @@ pub fn prune_tree_to_files(
         path: node.path.clone(),
         node_type: node.node_type.clone(),
         size: node.size,
+        ignored: node.ignored,
         children: Some(children),
     })
 }
@@ -274,6 +276,7 @@ mod tests {
             path: path.into(),
             node_type: "file".into(),
             size: Some(1.0),
+            ignored: false,
             children: None,
         };
         let dir = |name: &str, path: &str, children: Vec<ProjectNode>| ProjectNode {
@@ -281,6 +284,7 @@ mod tests {
             path: path.into(),
             node_type: "dir".into(),
             size: None,
+            ignored: false,
             children: Some(children),
         };
 

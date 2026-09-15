@@ -145,10 +145,11 @@ async updateQuickPaneShortcut(shortcut: string | null) : Promise<Result<null, st
 },
 /**
  * Open a local project directory and scan its file tree.
+ * `extra_ignore` marks matching paths as ignored (shown disabled, excluded from Context).
  */
-async openProject(path: string) : Promise<Result<ScannedProject, string>> {
+async openProject(path: string, extraIgnore: string[]) : Promise<Result<ScannedProject, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("open_project", { path }) };
+    return { status: "ok", data: await TAURI_INVOKE("open_project", { path, extraIgnore }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -157,9 +158,9 @@ async openProject(path: string) : Promise<Result<ScannedProject, string>> {
 /**
  * Re-scan an already known project path.
  */
-async rescanProject(path: string) : Promise<Result<ScannedProject, string>> {
+async rescanProject(path: string, extraIgnore: string[]) : Promise<Result<ScannedProject, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("rescan_project", { path }) };
+    return { status: "ok", data: await TAURI_INVOKE("rescan_project", { path, extraIgnore }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -207,9 +208,9 @@ async readProjectFiles(rootPath: string, paths: string[]) : Promise<Result<FileC
  * Structure and content are independent: e.g. full structure of `src/auth/`
  * plus content of a single Login file, without any `src/payment/` structure.
  */
-async buildProjectContext(rootPath: string, structurePaths: string[], contentPaths: string[]) : Promise<Result<ContextBuildResult, string>> {
+async buildProjectContext(rootPath: string, structurePaths: string[], contentPaths: string[], extraIgnore: string[]) : Promise<Result<ContextBuildResult, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("build_project_context", { rootPath, structurePaths, contentPaths }) };
+    return { status: "ok", data: await TAURI_INVOKE("build_project_context", { rootPath, structurePaths, contentPaths, extraIgnore }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -334,7 +335,11 @@ export type ProjectNode = { name: string;
 /**
  * Path relative to project root, using forward slashes.
  */
-path: string; nodeType: string; size: number | null; children: ProjectNode[] | null }
+path: string; nodeType: string; size: number | null; 
+/**
+ * Excluded from Context; still listed in the tree (disabled in UI).
+ */
+ignored?: boolean; children: ProjectNode[] | null }
 export type RecentProject = { name: string; path: string; openedAt: string }
 /**
  * Error types for recovery operations (typed for frontend matching)

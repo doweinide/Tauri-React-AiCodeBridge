@@ -131,42 +131,68 @@ export const useChangesStore = create<ChangesState>()(
         }
 
         const parsedChanges = result.data.changes
-        // Always read current disk content for non-ADD ops so Diff left pane is real.
-        const baselinePaths = parsedChanges
-          .filter(c => c.operation === 'modify' || c.operation === 'delete')
-          .map(c => c.path)
-
+        // Read live disk baselines for every path (including ADD).
+        // If an "add" target already exists (e.g. reusing an old JSON after apply
+        // + local edits), Diff must compare against current file content, not empty.
+        const allPaths = parsedChanges.map(c => c.path)
         const diskMap: Record<string, string> = {}
         const diskHashes: Record<string, string> = {}
-        if (baselinePaths.length > 0) {
+
+        const loadDisk = async (paths: string[]) => {
+          if (paths.length === 0) return
           try {
-            const files = await readProjectFiles(rootPath, baselinePaths)
+            const files = await readProjectFiles(rootPath, paths)
             for (const f of files) {
               diskMap[f.path] = f.content
               diskHashes[f.path] = f.hash
             }
           } catch {
-            // Missing files stay empty on the left pane
+            // Batch may fail if some files are missing — retry per path
+            for (const p of paths) {
+              try {
+                const files = await readProjectFiles(rootPath, [p])
+                for (const f of files) {
+                  diskMap[f.path] = f.content
+                  diskHashes[f.path] = f.hash
+                }
+              } catch {
+                // File not on disk — leave undefined (true ADD)
+              }
+            }
           }
         }
 
+        await loadDisk(allPaths)
+
         const changes: ReviewChange[] = parsedChanges.map(
           (c: ProjectChange) => {
-            const isAdd = c.operation === 'add'
-            const oldContent = isAdd ? null : (diskMap[c.path] ?? '')
-            const newContent = c.operation === 'delete' ? null : (c.content ?? '')
-            // Prefer context-created hash for external-change detection; fall back to disk hash.
+            const onDisk = Object.prototype.hasOwnProperty.call(diskMap, c.path)
+            // ADD but file already exists → treat as modify for Diff + Apply
+            const effectiveType: ReviewChange['type'] =
+              c.operation === 'add' && onDisk ? 'modify' : c.operation
+            const oldContent =
+              c.operation === 'delete'
+                ? onDisk
+                  ? diskMap[c.path] ?? ''
+                  : null
+                : onDisk
+                  ? diskMap[c.path] ?? ''
+                  : c.operation === 'add'
+                    ? null
+                    : ''
+            const newContent =
+              effectiveType === 'delete' ? null : (c.content ?? null)
             const expectedHash =
               fileHashes[c.path] ?? diskHashes[c.path] ?? null
             return {
               id: nextId(),
-              type: c.operation,
+              type: effectiveType,
               path: c.path,
               status: 'pending',
               oldContent,
               newContent,
               expectedHash,
-              diff: buildDiff(c.operation, oldContent, newContent),
+              diff: buildDiff(effectiveType, oldContent, newContent),
             }
           }
         )

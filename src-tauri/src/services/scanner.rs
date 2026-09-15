@@ -1,11 +1,12 @@
-//! Project directory scanner with default + .aiignore rules.
+//! Project directory scanner with default + .aiignore + user ignore rules.
 //! Uses std::fs only (no walkdir/ignore) for a zero-extra-dep MVP.
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-/// Default directory names always excluded from scans.
+/// Default directory names always excluded from scans (too large / never useful).
 const DEFAULT_DIR_IGNORES: &[&str] = &[
     ".git",
     "node_modules",
@@ -23,11 +24,8 @@ const DEFAULT_DIR_IGNORES: &[&str] = &[
 ];
 
 const DEFAULT_SENSITIVE_BASENAMES: &[&str] = &[".env", "credentials.json"];
-
 const DEFAULT_SENSITIVE_PREFIXES: &[&str] = &[".env."];
-
 const DEFAULT_SENSITIVE_SUFFIXES: &[&str] = &[".key", ".pem"];
-
 const DEFAULT_SENSITIVE_CONTAINS: &[&str] = &["credentials.", "secrets."];
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -38,6 +36,9 @@ pub struct ProjectNode {
     pub path: String,
     pub node_type: String, // "file" | "dir"
     pub size: Option<f64>,
+    /// Excluded from Context; still listed in the tree (disabled in UI).
+    #[serde(default)]
+    pub ignored: bool,
     pub children: Option<Vec<ProjectNode>>,
 }
 
@@ -51,7 +52,6 @@ pub struct ScannedProject {
     pub total_bytes: f64,
 }
 
-/// Returns true if a basename looks like a sensitive file that should never leave the machine.
 pub fn is_sensitive_basename(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
     if DEFAULT_SENSITIVE_BASENAMES.iter().any(|b| lower == *b) {
@@ -92,9 +92,12 @@ fn load_aiignore(root: &Path) -> Vec<String> {
         .collect()
 }
 
-fn matches_aiignore(rel_path: &str, name: &str, rules: &[String]) -> bool {
+fn matches_rule_list(rel_path: &str, name: &str, rules: &[String]) -> bool {
     for rule in rules {
-        let rule = rule.trim_end_matches('/');
+        let rule = rule.trim().trim_end_matches('/');
+        if rule.is_empty() {
+            continue;
+        }
         if let Some(prefix) = rule.strip_suffix('*') {
             if !prefix.is_empty() && (rel_path.starts_with(prefix) || name.starts_with(prefix)) {
                 return true;
@@ -118,22 +121,42 @@ fn matches_aiignore(rel_path: &str, name: &str, rules: &[String]) -> bool {
     false
 }
 
+/// Prefix match for user "ignore this folder/file" entries (relative paths).
+fn matches_custom_ignore(rel_path: &str, extra: &[String]) -> bool {
+    for p in extra {
+        let p = p.trim().trim_end_matches('/');
+        if p.is_empty() {
+            continue;
+        }
+        if rel_path == p || rel_path.starts_with(&format!("{p}/")) {
+            return true;
+        }
+    }
+    false
+}
+
 #[derive(Default)]
 struct DirBuilder {
-    files: Vec<(String, f64)>,
-    dirs: std::collections::BTreeMap<String, DirBuilder>,
+    /// (name, size, ignored)
+    files: Vec<(String, f64, bool)>,
+    /// name → (builder, ignored_dir_flag)
+    dirs: BTreeMap<String, (DirBuilder, bool)>,
+}
+
+struct WalkCtx<'a> {
+    aiignore: &'a [String],
+    extra_ignore: &'a [String],
 }
 
 fn walk_dir(
     abs: &Path,
     rel: &str,
-    aiignore: &[String],
+    ctx: &WalkCtx,
     builder: &mut DirBuilder,
     file_count: &mut u32,
     total_bytes: &mut f64,
 ) -> Result<(), String> {
     let entries = std::fs::read_dir(abs).map_err(|e| format!("read_dir {}: {e}", abs.display()))?;
-
     let mut names: Vec<_> = entries.flatten().collect();
     names.sort_by_key(|e| e.file_name());
 
@@ -151,47 +174,49 @@ fn walk_dir(
             if is_default_ignored_dir(&name) {
                 continue;
             }
-            if matches_aiignore(&child_rel, &name, aiignore) {
-                continue;
+            let ignored = matches_custom_ignore(&child_rel, ctx.extra_ignore)
+                || matches_rule_list(&child_rel, &name, ctx.aiignore);
+            let child = builder
+                .dirs
+                .entry(name.clone())
+                .or_insert_with(|| (DirBuilder::default(), ignored));
+            if ignored {
+                child.1 = true;
             }
-            let child_builder = builder.dirs.entry(name.clone()).or_default();
             walk_dir(
                 &entry.path(),
                 &child_rel,
-                aiignore,
-                child_builder,
+                ctx,
+                &mut child.0,
                 file_count,
                 total_bytes,
             )?;
         } else if file_type.is_file() {
-            if is_sensitive_basename(&name) {
-                continue;
-            }
-            if matches_aiignore(&child_rel, &name, aiignore) {
-                continue;
-            }
+            let ignored = is_sensitive_basename(&name)
+                || matches_custom_ignore(&child_rel, ctx.extra_ignore)
+                || matches_rule_list(&child_rel, &name, ctx.aiignore);
             let size = entry.metadata().map(|m| m.len() as f64).unwrap_or(0.0);
             *file_count += 1;
             *total_bytes += size;
-            builder.files.push((name, size));
+            builder.files.push((name, size, ignored));
         }
     }
     Ok(())
 }
 
-fn build_node(name: &str, path: &str, builder: DirBuilder) -> ProjectNode {
+fn build_node(name: &str, path: &str, builder: DirBuilder, ignored: bool) -> ProjectNode {
     let mut children: Vec<ProjectNode> = Vec::new();
 
-    for (dir_name, dir_builder) in builder.dirs {
+    for (dir_name, (dir_builder, dir_ignored)) in builder.dirs {
         let child_path = if path.is_empty() {
             dir_name.clone()
         } else {
             format!("{path}/{dir_name}")
         };
-        children.push(build_node(&dir_name, &child_path, dir_builder));
+        children.push(build_node(&dir_name, &child_path, dir_builder, dir_ignored));
     }
 
-    for (file_name, size) in builder.files {
+    for (file_name, size, file_ignored) in builder.files {
         let child_path = if path.is_empty() {
             file_name.clone()
         } else {
@@ -202,6 +227,7 @@ fn build_node(name: &str, path: &str, builder: DirBuilder) -> ProjectNode {
             path: child_path,
             node_type: "file".into(),
             size: Some(size),
+            ignored: file_ignored,
             children: None,
         });
     }
@@ -217,12 +243,22 @@ fn build_node(name: &str, path: &str, builder: DirBuilder) -> ProjectNode {
         path: path.to_string(),
         node_type: "dir".into(),
         size: None,
+        ignored,
         children: Some(children),
     }
 }
 
-/// Scan a project directory into a tree, applying ignore rules.
+/// Scan a project (no extra user ignore prefixes).
 pub fn scan_project(root: &Path) -> Result<ScannedProject, String> {
+    scan_project_with_ignores(root, &[])
+}
+
+/// Scan a project. `extra_ignores` are relative path prefixes (folders/files)
+/// that should appear as `ignored: true` (disabled in UI, excluded from Context).
+pub fn scan_project_with_ignores(
+    root: &Path,
+    extra_ignores: &[String],
+) -> Result<ScannedProject, String> {
     if !root.is_dir() {
         return Err(format!("Not a directory: {}", root.display()));
     }
@@ -237,6 +273,10 @@ pub fn scan_project(root: &Path) -> Result<ScannedProject, String> {
         .unwrap_or_else(|| "project".to_string());
 
     let aiignore = load_aiignore(&root);
+    let ctx = WalkCtx {
+        aiignore: &aiignore,
+        extra_ignore: extra_ignores,
+    };
     let mut root_builder = DirBuilder::default();
     let mut file_count = 0u32;
     let mut total_bytes = 0f64;
@@ -244,13 +284,13 @@ pub fn scan_project(root: &Path) -> Result<ScannedProject, String> {
     walk_dir(
         &root,
         "",
-        &aiignore,
+        &ctx,
         &mut root_builder,
         &mut file_count,
         &mut total_bytes,
     )?;
 
-    let tree = build_node(&name, "", root_builder);
+    let tree = build_node(&name, "", root_builder, false);
 
     Ok(ScannedProject {
         name,
@@ -275,36 +315,43 @@ mod tests {
                 .as_nanos()
         ));
         fs::create_dir_all(dir.join("src/auth")).unwrap();
+        fs::create_dir_all(dir.join("docs")).unwrap();
         fs::create_dir_all(dir.join("node_modules/pkg")).unwrap();
         fs::write(dir.join("src/auth/login.ts"), "export const a = 1;\n").unwrap();
+        fs::write(dir.join("docs/a.md"), "x\n").unwrap();
         fs::write(dir.join("package.json"), "{}\n").unwrap();
         fs::write(dir.join(".env"), "SECRET=1\n").unwrap();
         fs::write(dir.join("node_modules/pkg/index.js"), "x\n").unwrap();
         dir
     }
 
-    fn flatten_paths(node: &ProjectNode) -> Vec<String> {
-        let mut out = Vec::new();
-        if node.node_type == "file" {
-            out.push(node.path.clone());
+    fn find_node<'a>(node: &'a ProjectNode, path: &str) -> Option<&'a ProjectNode> {
+        if node.path == path {
+            return Some(node);
         }
-        if let Some(children) = &node.children {
-            for c in children {
-                out.extend(flatten_paths(c));
+        for c in node.children.as_deref().unwrap_or(&[]) {
+            if let Some(n) = find_node(c, path) {
+                return Some(n);
             }
         }
-        out
+        None
     }
 
     #[test]
-    fn scan_excludes_ignored_and_sensitive() {
+    fn scan_marks_ignored_and_skips_hard_dirs() {
         let dir = temp_project();
-        let scanned = scan_project(&dir).unwrap();
-        let flat = flatten_paths(&scanned.tree);
-        assert!(flat.iter().any(|p| p == "src/auth/login.ts"));
-        assert!(flat.iter().any(|p| p == "package.json"));
-        assert!(!flat.iter().any(|p| p.contains("node_modules")));
-        assert!(!flat.iter().any(|p| p == ".env"));
+        let scanned = scan_project_with_ignores(&dir, &["docs".into()]).unwrap();
+        let docs = find_node(&scanned.tree, "docs").unwrap();
+        assert!(docs.ignored);
+        let doc_file = find_node(&scanned.tree, "docs/a.md").unwrap();
+        assert!(doc_file.ignored);
+        let login = find_node(&scanned.tree, "src/auth/login.ts").unwrap();
+        assert!(!login.ignored);
+        // hard ignore still hidden
+        assert!(find_node(&scanned.tree, "node_modules").is_none());
+        // sensitive file shown but ignored
+        let env = find_node(&scanned.tree, ".env");
+        assert!(env.is_some_and(|n| n.ignored));
         fs::remove_dir_all(&dir).ok();
     }
 

@@ -20,12 +20,18 @@ import {
 
 export type { ProjectNode, ScannedProject, RecentProject, FileContent }
 
-export async function openProject(path: string): Promise<ScannedProject> {
-  return unwrapResult(await commands.openProject(path))
+export async function openProject(
+  path: string,
+  extraIgnore: string[] = []
+): Promise<ScannedProject> {
+  return unwrapResult(await commands.openProject(path, extraIgnore))
 }
 
-export async function rescanProject(path: string): Promise<ScannedProject> {
-  return unwrapResult(await commands.rescanProject(path))
+export async function rescanProject(
+  path: string,
+  extraIgnore: string[] = []
+): Promise<ScannedProject> {
+  return unwrapResult(await commands.rescanProject(path, extraIgnore))
 }
 
 export async function getRecentProjects(): Promise<RecentProject[]> {
@@ -39,10 +45,16 @@ export async function getRecentProjects(): Promise<RecentProject[]> {
 export async function fetchProjectContext(
   rootPath: string,
   structurePaths: string[],
-  contentPaths: string[]
+  contentPaths: string[],
+  extraIgnore: string[] = []
 ): Promise<ContextBuildResult> {
   return unwrapResult(
-    await commands.buildProjectContext(rootPath, structurePaths, contentPaths)
+    await commands.buildProjectContext(
+      rootPath,
+      structurePaths,
+      contentPaths,
+      extraIgnore
+    )
   )
 }
 

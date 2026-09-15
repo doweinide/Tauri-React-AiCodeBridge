@@ -5,6 +5,7 @@ import {
   rescanProject,
   getRecentProjects,
 } from '@/services/project'
+import { useIgnoreStore } from '@/features/context/ignore-store'
 import type {
   ProjectNode,
   RecentProject,
@@ -34,7 +35,7 @@ export const useProjectStore = create<ProjectState>()(
       open: async path => {
         set({ loading: true, error: null }, undefined, 'open/start')
         try {
-          const project = await openProject(path)
+          const project = await openProject(path, useIgnoreStore.getState().listForProject(path))
           set({ project, loading: false }, undefined, 'open/ok')
           void get().loadRecent()
         } catch (e) {
@@ -54,7 +55,10 @@ export const useProjectStore = create<ProjectState>()(
         if (!current) return
         set({ loading: true, error: null }, undefined, 'rescan/start')
         try {
-          const project = await rescanProject(current.rootPath)
+          const project = await rescanProject(
+          current.rootPath,
+          useIgnoreStore.getState().listForProject(current.rootPath)
+        )
           set({ project, loading: false }, undefined, 'rescan/ok')
         } catch (e) {
           set(

@@ -17,9 +17,12 @@ import {
   estimateProjectTokens,
   reductionPercent,
   projectContextToMarkdown,
+  createSelection,
+  type ProjectSelection,
   type TokenEstimate,
 } from '@/lib/protocol'
 import { useAppSettingsStore } from '@/store/app-settings-store'
+import { useIgnoreStore } from './ignore-store'
 import { collectFilePaths } from '@/features/project/project-store'
 
 export type PreviewTab = 'tree' | 'json' | 'raw' | 'md'
@@ -62,6 +65,8 @@ interface ContextState {
   clearContent: () => void
   /** Copy structure selection to content (files currently in structure) */
   copyStructureToContent: () => void
+  exportSelection: () => ProjectSelection
+  applySelection: (structure: string[], content: string[]) => void
   setPreviewTab: (tab: PreviewTab) => void
   setSelectedFileForCode: (path: string | null) => void
   refreshPreview: (rootPath: string) => Promise<void>
@@ -121,6 +126,13 @@ export const useContextStore = create<ContextState>()(
         set(
           state => {
             const next = new Set(state.structureSelected)
+            // Empty dir (or only ignored children): toggle the directory path itself
+            if (files.length === 0) {
+              const shouldSelect = on ?? !next.has(node.path)
+              if (shouldSelect) next.add(node.path)
+              else next.delete(node.path)
+              return { structureSelected: next }
+            }
             const allSelected =
               files.length > 0 && files.every(p => next.has(p))
             const shouldSelect = on ?? !allSelected
@@ -203,6 +215,24 @@ export const useContextStore = create<ContextState>()(
           'copyStructureToContent'
         ),
 
+      /** Export current structure/content path lists */
+      exportSelection: () => {
+        const { structureSelected, contentSelected } = get()
+        return createSelection([...structureSelected], [...contentSelected])
+      },
+
+      /** Apply imported selection JSON */
+      applySelection: (structure: string[], content: string[]) => {
+        set(
+          {
+            structureSelected: new Set(structure),
+            contentSelected: new Set(content),
+          },
+          undefined,
+          'applySelection'
+        )
+      },
+
       setPreviewTab: tab =>
         set({ previewTab: tab }, undefined, 'setPreviewTab'),
       setSelectedFileForCode: path =>
@@ -212,10 +242,12 @@ export const useContextStore = create<ContextState>()(
         const { structureSelected, contentSelected } = get()
         set({ building: true, lastError: null }, undefined, 'refresh/start')
         try {
+          const extraIgnore = useIgnoreStore.getState().listForProject(rootPath)
           const buildResult = await fetchProjectContext(
             rootPath,
             [...structureSelected],
-            [...contentSelected]
+            [...contentSelected],
+            extraIgnore
           )
           const protocolContext = toProjectContext(buildResult)
           const previewText = contextJsonText(protocolContext)

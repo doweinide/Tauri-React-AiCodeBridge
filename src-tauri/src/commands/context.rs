@@ -36,9 +36,10 @@ pub async fn build_project_context(
     root_path: String,
     structure_paths: Vec<String>,
     content_paths: Vec<String>,
+    extra_ignore: Vec<String>,
 ) -> Result<ContextBuildResult, String> {
     let root = PathBuf::from(&root_path);
-    let scanned = scanner::scan_project(&root)?;
+    let scanned = scanner::scan_project_with_ignores(&root, &extra_ignore)?;
 
     if structure_paths.len() > 5000 {
         return Err("Too many structure paths (max 5000)".into());
@@ -56,6 +57,7 @@ pub async fn build_project_context(
             path: String::new(),
             node_type: "dir".into(),
             size: None,
+            ignored: false,
             children: Some(Vec::new()),
         }
     });
